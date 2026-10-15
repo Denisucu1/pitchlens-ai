@@ -5,6 +5,7 @@ import type {
   Language,
   PlayerProfile,
   TeamProfile,
+  ClubSummary,
 } from "./types";
 import { Navbar } from "./components/Navbar";
 import { BroadcastPitch } from "./components/BroadcastPitch";
@@ -15,34 +16,71 @@ import { PersonalizedNarrativeFeed } from "./components/PersonalizedNarrativeFee
 import { StatsPanel } from "./components/StatsPanel";
 import { StudioRecapModal } from "./components/StudioRecapModal";
 import { FanChatWidget } from "./components/FanChatWidget";
+import { AgentBrainMonitor } from "./components/AgentBrainMonitor";
+import { MatchTimelineBar } from "./components/MatchTimelineBar";
 
 export function App() {
   const [payload, setPayload] = useState<LiveMatchPayload | null>(null);
   const [homeTeam, setHomeTeam] = useState<TeamProfile | null>(null);
   const [awayTeam, setAwayTeam] = useState<TeamProfile | null>(null);
+  const [clubs, setClubs] = useState<ClubSummary[]>([]);
   const [persona, setPersona] = useState<PersonaMode>("casual_fan");
   const [language, setLanguage] = useState<Language>("en");
   const [isPaused, setIsPaused] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [showRecap, setShowRecap] = useState(false);
   const [focusedPlayer, setFocusedPlayer] = useState<PlayerProfile | null>(null);
+  const [isAudioEnabled, setIsAudioEnabled] = useState(false);
 
   const wsRef = useRef<WebSocket | null>(null);
+  const lastSpokenEventId = useRef<string>("");
 
-  // Fetch initial teams
+  // Fetch initial teams and available clubs
   useEffect(() => {
     fetch("http://localhost:8000/api/match/teams")
       .then((res) => res.json())
       .then((data) => {
         setHomeTeam(data.home_team);
         setAwayTeam(data.away_team);
-        // Default focus: first winger
         if (data.home_team?.players?.length > 8) {
           setFocusedPlayer(data.home_team.players[8]);
         }
       })
       .catch((err) => console.error("Could not fetch teams", err));
+
+    fetch("http://localhost:8000/api/match/clubs")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.clubs) setClubs(data.clubs);
+      })
+      .catch((err) => console.error("Could not fetch clubs", err));
   }, []);
+
+  // Web Speech Audio Voice Commentary Synthesis
+  useEffect(() => {
+    if (!isAudioEnabled || !payload || !window.speechSynthesis) return;
+
+    const currentEventId = payload.latest_event.event_id;
+    if (currentEventId === lastSpokenEventId.current) return;
+    lastSpokenEventId.current = currentEventId;
+
+    // Pick narrative based on current persona
+    let textToSpeak = payload.narrative.casual_fan_narrative;
+    if (persona === "data_analyst") {
+      textToSpeak = payload.narrative.data_analyst_narrative;
+    } else if (persona === "player_focus" && payload.narrative.player_focus_narrative) {
+      textToSpeak = payload.narrative.player_focus_narrative;
+    }
+
+    // Clean emojis for speech synthesis
+    const cleanText = textToSpeak.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, "");
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.rate = 1.05;
+    utterance.lang = language === "ro" ? "ro-RO" : language === "es" ? "es-ES" : "en-GB";
+    window.speechSynthesis.speak(utterance);
+  }, [payload, isAudioEnabled, persona, language]);
 
   // Connect WebSocket
   useEffect(() => {
@@ -71,7 +109,6 @@ export function App() {
       };
 
       ws.onclose = () => {
-        console.log("[WebSocket] Disconnected. Reconnecting in 2s...");
         reconnectTimeout = setTimeout(connectWs, 2000);
       };
 
@@ -120,6 +157,23 @@ export function App() {
     }
   };
 
+  const handleSwitchFixture = async (homeId: string, awayId: string) => {
+    try {
+      await fetch("http://localhost:8000/api/match/switch-fixture", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ home_team_id: homeId, away_team_id: awayId }),
+      });
+      // Refresh teams
+      const res = await fetch("http://localhost:8000/api/match/teams");
+      const data = await res.json();
+      setHomeTeam(data.home_team);
+      setAwayTeam(data.away_team);
+    } catch (err) {
+      console.error("Failed to switch fixture", err);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#0c0314] text-white flex flex-col font-sans selection:bg-[#00FF87] selection:text-black">
       {/* Top Bar */}
@@ -134,12 +188,16 @@ export function App() {
         speed={speed}
         setSpeed={handleSpeedChange}
         onOpenRecap={() => setShowRecap(true)}
+        isAudioEnabled={isAudioEnabled}
+        toggleAudio={() => setIsAudioEnabled(!isAudioEnabled)}
+        clubs={clubs}
+        onSwitchFixture={handleSwitchFixture}
       />
 
       {/* Main Studio Console */}
       <main className="flex-1 p-4 md:p-6 max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column (Pitch & Narratives) */}
-        <section className="lg:col-span-8 flex flex-col gap-6">
+        {/* Left Column (Pitch, Timeline & Narratives) */}
+        <section className="lg:col-span-8 flex flex-col gap-5">
           {/* Live Pitch with Overlay */}
           <div className="relative">
             <BroadcastPitch
@@ -148,10 +206,19 @@ export function App() {
               awayTeam={awayTeam}
               focusedPlayer={focusedPlayer}
               onSelectPlayer={handleSelectPlayer}
+              heatmapPoints={payload?.heatmap_points || []}
+              passLinks={payload?.pass_links || []}
             />
             {/* On-Screen Graphic Overlay (Stage D) */}
             <BroadcastOverlayBanner overlay={payload?.active_overlay || null} />
           </div>
+
+          {/* 90-Minute Momentum Timeline Bar */}
+          <MatchTimelineBar
+            currentMinute={payload?.current_minute || 1}
+            currentSecond={payload?.current_second || 0}
+            moments={payload?.timeline_moments || []}
+          />
 
           {/* Real-time Narrative Stream (Stage E) */}
           <PersonalizedNarrativeFeed
@@ -159,10 +226,13 @@ export function App() {
             persona={persona}
             latestEvent={payload?.latest_event || null}
           />
+
+          {/* Agent Brain Activity Monitor (Multi-Agent Orchestration) */}
+          <AgentBrainMonitor logs={payload?.agent_logs || []} />
         </section>
 
         {/* Right Column (Tactical Intelligence & Stats) */}
-        <section className="lg:col-span-4 flex flex-col gap-6">
+        <section className="lg:col-span-4 flex flex-col gap-5">
           {/* Game Rhythm & Control vs Chaos (Stage B) */}
           <ControlChaosGauge rhythm={payload?.rhythm || null} />
 

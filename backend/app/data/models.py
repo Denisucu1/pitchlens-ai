@@ -73,7 +73,7 @@ class TeamProfile(BaseModel):
     secondary_color: str
     formation: str  # e.g., "4-3-3", "4-2-3-1"
     manager: str
-    tactical_style: str  # "High-Press Possession", "Low-Block Counter", "Direct Vertical"
+    tactical_style: str
     players: List[PlayerProfile] = []
 
 # --- SYNTHETIC EVENT SCHEMA (STAGE A) ---
@@ -92,19 +92,19 @@ class MatchEvent(BaseModel):
     location: PitchCoordinates
     end_location: Optional[PitchCoordinates] = None
     
-    # Physics & Speed Metrics (Hackathon Required)
+    # Speed Metrics (Hackathon Required)
     ball_speed_kmh: Optional[float] = None
     shot_speed_kmh: Optional[float] = None
     player_speed_kmh: float = 0.0
     
     # Pass Quality Metrics (Hackathon Required)
     pass_distance_m: Optional[float] = None
-    pass_difficulty_rating: Optional[float] = Field(None, ge=0.0, le=1.0, description="0.0 easiest, 1.0 hardest")
+    pass_difficulty_rating: Optional[float] = Field(None, ge=0.0, le=1.0)
     pass_outcome: Optional[PassOutcome] = None
     
-    # Advanced Statistical Expected Metrics
-    xG: Optional[float] = Field(None, ge=0.0, le=1.0, description="Expected Goals")
-    xA: Optional[float] = Field(None, ge=0.0, le=1.0, description="Expected Assists")
+    # Expected Metrics
+    xG: Optional[float] = Field(None, ge=0.0, le=1.0)
+    xA: Optional[float] = Field(None, ge=0.0, le=1.0)
     shot_outcome: Optional[ShotOutcome] = None
     
     # Tactical context
@@ -133,11 +133,11 @@ class TeamMatchStats(BaseModel):
     distance_covered_km: float = 0.0
 
 class RhythmState(BaseModel):
-    control_vs_chaos_index: float = Field(50.0, ge=0.0, le=100.0, description="0 = Total Chaos/Transitional, 100 = Total Tactical Control")
-    tactical_pressure_index: float = Field(50.0, ge=0.0, le=100.0, description="Current pitch pressure intensity")
+    control_vs_chaos_index: float = Field(50.0, ge=0.0, le=100.0)
+    tactical_pressure_index: float = Field(50.0, ge=0.0, le=100.0)
     momentum_team_id: str = ""
-    dominant_zone: str = "Center Midfield"  # e.g., "Left Flank", "Final Third", "Box"
-    pace_rating: str = "Medium"  # Low, Medium, High, Frenetic
+    dominant_zone: str = "Center Midfield"
+    pace_rating: str = "Medium"
 
 # --- EXPLAINABILITY & TACTICAL INSIGHT (STAGE C) ---
 class ExplainabilityInsight(BaseModel):
@@ -147,7 +147,7 @@ class ExplainabilityInsight(BaseModel):
     title: str
     why_it_matters: str
     tactical_shift_explanation: str
-    pattern_detected: str  # e.g. "Overload on Right Flank", "Counter-Press Collapse", "High-Press Escape"
+    pattern_detected: str
     key_contributing_factors: List[str] = []
     confidence_score: float = 0.95
 
@@ -169,7 +169,7 @@ class BroadcastOverlay(BaseModel):
     detail_text: str
     duration_seconds: int = 6
     is_active: bool = True
-    accent_color: str = "#38003C"  # Premier League purple default
+    accent_color: str = "#38003C"
 
 # --- AUDIENCE PERSONALIZATION & NARRATIVE (STAGE E) ---
 class PersonalizedNarrative(BaseModel):
@@ -179,6 +179,19 @@ class PersonalizedNarrative(BaseModel):
     data_analyst_narrative: str
     player_focus_narrative: Optional[str] = None
     language: Language = Language.EN
+
+# --- MULTI-AGENT ORCHESTRATION LOG SCHEMA ---
+class AgentLog(BaseModel):
+    agent_name: str  # Orchestrator, Tactical, Narrative, Graphics, Fan
+    role: str
+    message: str
+    timestamp: str
+    status: Literal["processing", "handoff", "success", "alert"] = "processing"
+
+class PassLink(BaseModel):
+    source_player_id: str
+    target_player_id: str
+    count: int
 
 # --- COMPLETE LIVE PAYLOAD EMITTED ON EVERY EVENT TICK ---
 class LiveMatchPayload(BaseModel):
@@ -195,3 +208,7 @@ class LiveMatchPayload(BaseModel):
     latest_insight: Optional[ExplainabilityInsight] = None
     narrative: PersonalizedNarrative
     focused_player: Optional[PlayerProfile] = None
+    agent_logs: List[AgentLog] = []
+    pass_links: List[PassLink] = []
+    heatmap_points: List[PitchCoordinates] = []
+    timeline_moments: List[Dict[str, Any]] = []

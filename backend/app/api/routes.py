@@ -1,8 +1,9 @@
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from app.data.models import Language, PersonaMode
 from app.agents.orchestrator import PitchLensOrchestrator
+from app.data.teams_data import get_premier_league_teams
 
 router = APIRouter(prefix="/api/match", tags=["Match Intelligence"])
 
@@ -15,17 +16,50 @@ class FocusPlayerRequest(BaseModel):
 class LanguageRequest(BaseModel):
     language: Language
 
+class SwitchFixtureRequest(BaseModel):
+    home_team_id: str
+    away_team_id: str
+
 class FanQueryRequest(BaseModel):
     question: str
     mode: PersonaMode = PersonaMode.CASUAL_FAN
     language: Language = Language.EN
 
+@router.get("/clubs")
+async def get_clubs():
+    """Returns all available official Premier League clubs and their squads."""
+    teams = get_premier_league_teams()
+    return {
+        "clubs": [
+            {
+                "id": t.id,
+                "name": t.name,
+                "short_name": t.short_name,
+                "primary_color": t.primary_color,
+                "secondary_color": t.secondary_color,
+                "manager": t.manager,
+                "tactical_style": t.tactical_style
+            }
+            for t in teams.values()
+        ]
+    }
+
 @router.get("/teams")
 async def get_teams():
-    """Returns team metadata, rosters, formations, and tactical profiles."""
+    """Returns the current match's home and away squad metadata."""
     return {
         "home_team": global_orchestrator.engine.home_team,
         "away_team": global_orchestrator.engine.away_team
+    }
+
+@router.post("/switch-fixture")
+async def switch_fixture(req: SwitchFixtureRequest):
+    """Switches the active match to another Premier League fixture."""
+    global_orchestrator.set_fixture(req.home_team_id, req.away_team_id)
+    return {
+        "status": "ok",
+        "home_team": global_orchestrator.engine.home_team.name,
+        "away_team": global_orchestrator.engine.away_team.name
     }
 
 @router.get("/state")
@@ -61,44 +95,43 @@ async def get_studio_recap(lang: Language = Query(Language.EN)):
 async def ask_pitchlens_ai(req: FanQueryRequest):
     """
     Fan & Analyst Conversational Q&A:
-    Answers natural language questions about the match using real-time match state,
+    Answers natural language questions about the match grounded on real-time match state,
     explainability insights, and tactical rhythm metrics.
     """
     curr = global_orchestrator.current_payload
     if not curr:
         curr = global_orchestrator.tick()
-        
+
     home = global_orchestrator.engine.home_team
     away = global_orchestrator.engine.away_team
     q_lower = req.question.lower()
-    
-    # Intelligent domain answering using current state
+
     if "why" in q_lower or "de ce" in q_lower or "por qué" in q_lower:
         if curr.latest_insight:
             ans = f"{curr.latest_insight.title}: {curr.latest_insight.why_it_matters} {curr.latest_insight.tactical_shift_explanation}"
         else:
             ans = (
-                f"The balance of the game is shaped by the Control vs Chaos Index ({curr.rhythm.control_vs_chaos_index:.1f}%). "
-                f"{curr.rhythm.momentum_team_id} currently holds spatial momentum in the {curr.rhythm.dominant_zone}."
+                f"The balance of the match is governed by the Control vs Chaos Index ({curr.rhythm.control_vs_chaos_index:.1f}%). "
+                f"{curr.rhythm.momentum_team_id.upper()} holds spatial momentum in {curr.rhythm.dominant_zone}."
             )
-    elif "who" in q_lower or "cine" in q_lower or "quién" in q_lower or "player" in q_lower or "jucator" in q_lower:
+    elif "who" in q_lower or "cine" in q_lower or "quién" in q_lower or "player" in q_lower or "jucator" in q_lower or "saka" in q_lower or "haaland" in q_lower:
         p = curr.focused_player or curr.latest_event.player
         ans = (
-            f"Key performer spotlight: {p.name} (#{p.number}, {p.position}). "
-            f"Clocked top speed of {p.current_speed_kmh} km/h with {p.distance_covered_meters:.0f}m distance covered."
+            f"Spotlight performer: {p.name} (#{p.number}, {p.position}). "
+            f"Clocked top sprint velocity of {p.current_speed_kmh} km/h with {p.distance_covered_meters:.0f}m covered across {p.sprint_count} sprints."
         )
     elif "stat" in q_lower or "xg" in q_lower or "possession" in q_lower or "posesie" in q_lower:
         ans = (
-            f"Match Metrics: {home.name} ({curr.stats_home.possession_pct}% possession, {curr.stats_home.total_xG:.2f} xG, {curr.stats_home.total_shots} shots) vs "
+            f"Official Match Statistics: {home.name} ({curr.stats_home.possession_pct}% possession, {curr.stats_home.total_xG:.2f} xG, {curr.stats_home.total_shots} shots) vs "
             f"{away.name} ({curr.stats_away.possession_pct}% possession, {curr.stats_away.total_xG:.2f} xG, {curr.stats_away.total_shots} shots). "
-            f"Average ball speed: {curr.stats_home.avg_ball_speed_kmh} km/h."
+            f"Running ball speed: {curr.stats_home.avg_ball_speed_kmh} km/h."
         )
     else:
         ans = (
-            f"PitchLens Intelligence: The score is {curr.score_home} - {curr.score_away} at minute {curr.current_minute}:{curr.current_second:02d}. "
-            f"Game rhythm is currently rated as '{curr.rhythm.pace_rating}' with pressure at {curr.rhythm.tactical_pressure_index:.1f}%."
+            f"PitchLens Broadcast Intelligence: The scoreline is {curr.score_home} - {curr.score_away} at {curr.current_minute}:{curr.current_second:02d} ({curr.latest_event.period}). "
+            f"Match rhythm is '{curr.rhythm.pace_rating}' with territorial pressure at {curr.rhythm.tactical_pressure_index:.1f}%."
         )
-        
+
     return {
         "question": req.question,
         "answer": ans,

@@ -135,6 +135,29 @@ export interface PersonalizedNarrative {
   language: Language;
 }
 
+export interface AgentLog {
+  agent_name: string;
+  role: string;
+  message: string;
+  timestamp: string;
+  status: "processing" | "handoff" | "success" | "alert";
+}
+
+export interface PassLink {
+  source_player_id: string;
+  target_player_id: string;
+  count: number;
+}
+
+export interface TimelineMoment {
+  minute: number;
+  type: string;
+  player: string;
+  team: string;
+  speed: number;
+  xg: number;
+}
+
 export interface LiveMatchPayload {
   match_id: string;
   current_minute: number;
@@ -149,4 +172,18 @@ export interface LiveMatchPayload {
   latest_insight?: ExplainabilityInsight | null;
   narrative: PersonalizedNarrative;
   focused_player?: PlayerProfile | null;
+  agent_logs: AgentLog[];
+  pass_links: PassLink[];
+  heatmap_points: PitchCoordinates[];
+  timeline_moments: TimelineMoment[];
+}
+
+export interface ClubSummary {
+  id: string;
+  name: string;
+  short_name: string;
+  primary_color: string;
+  secondary_color: string;
+  manager: string;
+  tactical_style: string;
 }

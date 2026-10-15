@@ -1,10 +1,12 @@
 import asyncio
 from typing import Optional, Dict, Any, List
+from collections import deque
 from app.data.models import (
     LiveMatchPayload, MatchEvent, PlayerProfile, Language,
-    TeamMatchStats, RhythmState, ExplainabilityInsight
+    TeamMatchStats, RhythmState, ExplainabilityInsight, AgentLog, PassLink
 )
 from app.data.synthetic_engine import SyntheticMatchEngine
+from app.data.teams_data import get_premier_league_teams
 from app.pipeline.stage_a_ingest import EventIngestionPipeline
 from app.pipeline.stage_b_interpret import MatchInterpretationEngine
 from app.pipeline.stage_c_explain import TacticalExplainabilityEngine
@@ -14,13 +16,21 @@ from app.config import settings
 
 class PitchLensOrchestrator:
     """
-    Master Orchestration Engine coordinating the 5-Stage Pipeline:
-    Stage A (Ingest) -> Stage B (Interpret) -> Stage C (Explain) -> Stage D (Render) -> Stage E (Personalize)
-    Maintains shared live match state, active overlays, and focused player tracking.
+    Master Multi-Agent Orchestrator executing the 5-Stage Pipeline:
+    Coordinates communication and handoffs between:
+    - 🎭 Orchestrator Agent (Task Dispatcher & State Coordinator)
+    - ⚔️ Tactical Analyst Agent (Spatial & xG Model Reasoning)
+    - 📝 Narrative Engine Agent (Persona & Multi-Language Generation)
+    - 📺 Broadcast Graphics Agent (On-Screen Lower-Third Producer)
+    - 🙋 Fan Interaction Agent (Context Grounding)
     """
-    def __init__(self, match_id: str = "PL-SYNTH-2026-01"):
+
+    def __init__(self, home_team_id: str = "arsenal", away_team_id: str = "mancity", match_id: str = "EPL-2026-LIVE"):
         self.match_id = match_id
-        self.engine = SyntheticMatchEngine(match_id=match_id)
+        self.home_team_id = home_team_id
+        self.away_team_id = away_team_id
+        
+        self.engine = SyntheticMatchEngine(home_team_id=home_team_id, away_team_id=away_team_id, match_id=match_id)
         
         # 5 Pipeline Stages
         self.stage_a = EventIngestionPipeline()
@@ -31,9 +41,12 @@ class PitchLensOrchestrator:
         self.stage_c = TacticalExplainabilityEngine()
         self.stage_d = BroadcastGraphicOverlayEngine()
         self.stage_e = PersonalizationStoryEngine()
-        
+
+        # Multi-Agent Coordination Log (sliding window of last 8 handoffs)
+        self.agent_logs: deque = deque(maxlen=8)
+
         # State tracking
-        self.focused_player_id: Optional[str] = "can_07"  # Default: Bukayo Smith (London Cannons RW)
+        self.focused_player_id: Optional[str] = "ars_07"  # Default: Bukayo Saka
         self.current_language: Language = Language.EN
         self.is_paused: bool = False
         self.playback_speed: float = 1.0
@@ -41,6 +54,18 @@ class PitchLensOrchestrator:
         self.score_home = 0
         self.score_away = 0
         self.history: List[LiveMatchPayload] = []
+
+    def set_fixture(self, home_id: str, away_id: str):
+        """Allows switching to any official Premier League fixture."""
+        self.home_team_id = home_id
+        self.away_team_id = away_id
+        self.engine = SyntheticMatchEngine(home_team_id=home_id, away_team_id=away_id, match_id=f"EPL-{home_id.upper()}-{away_id.upper()}")
+        self.stage_b = MatchInterpretationEngine(home_team_id=home_id, away_team_id=away_id)
+        self.score_home = 0
+        self.score_away = 0
+        self.focused_player_id = self.engine.home_team.players[8].id if len(self.engine.home_team.players) > 8 else None
+        self.agent_logs.clear()
+        self.tick()
 
     def set_focused_player(self, player_id: Optional[str]):
         self.focused_player_id = player_id
@@ -58,36 +83,77 @@ class PitchLensOrchestrator:
 
     def tick(self) -> LiveMatchPayload:
         """
-        Executes one full cycle of the 5-Stage Match Pipeline.
+        Executes one full cycle of the 5-Stage Multi-Agent Match Pipeline.
         """
-        # 1. Generate & Ingest (Stage A)
+        # 1. Ingestion (Stage A)
         raw_event = self.engine.generate_next_event()
         event = self.stage_a.process(raw_event)
-        
-        # Update match scores if goal
+
+        # Update scores if goal
         if event.event_type.value == "goal":
             if event.team_id == self.engine.home_team.id:
                 self.score_home += 1
             else:
                 self.score_away += 1
 
-        # 2. Interpret (Stage B)
+        time_str = f"{event.minute}:{event.second:02d}"
+
+        # Agent Step 1: Orchestrator
+        self.agent_logs.append(AgentLog(
+            agent_name="🎭 Orchestrator",
+            role="Dispatcher & Coordinator",
+            message=f"Ingested {event.event_type.value.upper()} by {event.player.name} at {time_str}. Routing to Tactical & Graphics.",
+            timestamp=time_str,
+            status="handoff"
+        ))
+
+        # 2. Interpretation (Stage B)
         stats_h, stats_a, rhythm = self.stage_b.process_event(event)
 
-        # 3. Explainability (Stage C)
+        # 3. Explainability (Stage C - Tactical Agent)
         insight = self.stage_c.analyze_event(event, rhythm, stats_h, stats_a)
+        if insight:
+            self.agent_logs.append(AgentLog(
+                agent_name="⚔️ Tactical Agent",
+                role="Spatial & Formation Analyst",
+                message=f"Detected pattern: '{insight.pattern_detected}'. Control Index: {rhythm.control_vs_chaos_index:.0f}%.",
+                timestamp=time_str,
+                status="alert"
+            ))
 
-        # 4. Render Overlays (Stage D)
+        # 4. Render Overlays (Stage D - Graphics Producer Agent)
         focused_player = self.get_focused_player()
         overlay = self.stage_d.generate_overlay(event, rhythm, insight, focused_player)
+        if overlay:
+            self.agent_logs.append(AgentLog(
+                agent_name="📺 Graphics Producer",
+                role="Broadcast Overlay Engine",
+                message=f"Deployed on-screen {overlay.graphic_type.value}: {overlay.primary_metric}.",
+                timestamp=time_str,
+                status="success"
+            ))
 
-        # 5. Personalize (Stage E)
+        # 5. Personalize (Stage E - Narrative Engine Agent)
         narrative = self.stage_e.generate_narrative(
             event=event,
             rhythm=rhythm,
             focused_player=focused_player,
             language=self.current_language
         )
+        self.agent_logs.append(AgentLog(
+            agent_name="📝 Narrative Engine",
+            role="Storyteller & Localizer",
+            message=f"Synthesized live commentary in [{self.current_language.value.upper()}] for Casual Fan & Analyst.",
+            timestamp=time_str,
+            status="processing"
+        ))
+
+        # Build Pass Links for Pass Network Visualizer
+        pass_links_list: List[PassLink] = []
+        for src_id, targets in self.engine.pass_matrix.items():
+            for tgt_id, cnt in targets.items():
+                if cnt >= 2:  # Only significant pass connections
+                    pass_links_list.append(PassLink(source_player_id=src_id, target_player_id=tgt_id, count=cnt))
 
         payload = LiveMatchPayload(
             match_id=self.match_id,
@@ -102,46 +168,47 @@ class PitchLensOrchestrator:
             active_overlay=overlay,
             latest_insight=insight,
             narrative=narrative,
-            focused_player=focused_player
+            focused_player=focused_player,
+            agent_logs=list(self.agent_logs),
+            pass_links=pass_links_list,
+            heatmap_points=self.engine.heatmap_cells,
+            timeline_moments=self.engine.timeline_moments
         )
-        
+
         self.current_payload = payload
         self.history.append(payload)
         return payload
 
     async def generate_studio_recap(self, language: Language = Language.EN) -> Dict[str, Any]:
-        """
-        Generates an automated, explainable post-match / half-time studio recap
-        summarizing momentum swings, tactical dominance, and key moments.
-        """
+        """Generates an executive studio recap."""
         stats_h = self.stage_b.stats[self.engine.home_team.id]
         stats_a = self.stage_b.stats[self.engine.away_team.id]
-        
+
         if language == Language.RO:
-            title = f"Rezumat Studio: {self.engine.home_team.name} {self.score_home} - {self.score_away} {self.engine.away_team.name}"
+            title = f"Raport Oficial de Studio: {self.engine.home_team.name} {self.score_home} - {self.score_away} {self.engine.away_team.name}"
             summary = (
-                f"Un meci de mare intensitate în Premier League. {self.engine.home_team.name} a dominat posesia cu "
-                f"{stats_h.possession_pct}%, generând un total de {stats_h.total_xG:.2f} xG din {stats_h.total_shots} șuturi. "
+                f"O confruntare tactică spectaculoasă în Premier League. {self.engine.home_team.name} a menținut "
+                f"{stats_h.possession_pct}% posesie și un total de {stats_h.total_xG:.2f} xG din {stats_h.total_shots} șuturi. "
                 f"În replică, {self.engine.away_team.name} a generat {stats_a.total_xG:.2f} xG bazându-se pe tranziții rapide "
-                f"și {stats_a.tackles_won} recuperări defensive."
+                f"și {stats_a.tackles_won} recuperări decisive."
             )
-            key_takeaway = "Eficiența în fața porții și gestionarea momentelor de haos tranzițional au stabilit deznodământul."
+            key_takeaway = "Eficiența în finalizare și gestionarea pressing-ului în treimea neutră au decis duelul."
         elif language == Language.ES:
-            title = f"Resumen de Estudio: {self.engine.home_team.name} {self.score_home} - {self.score_away} {self.engine.away_team.name}"
+            title = f"Informe de Estudio: {self.engine.home_team.name} {self.score_home} - {self.score_away} {self.engine.away_team.name}"
             summary = (
-                f"Duelo táctico de alto calibre. {self.engine.home_team.name} controló la posesión con un {stats_h.possession_pct}%, "
-                f"acumulando {stats_h.total_xG:.2f} xG en {stats_h.total_shots} disparos."
+                f"Duelo táctico de alto nivel en la Premier League. {self.engine.home_team.name} dominó la posesión con un "
+                f"{stats_h.possession_pct}%, generando {stats_h.total_xG:.2f} xG en {stats_h.total_shots} disparos."
             )
-            key_takeaway = "La presión en zonas interiores desarticuló las líneas defensivas rivales."
+            key_takeaway = "La precisión en el último tercio marcó la diferencia en las transiciones rápidas."
         else:
-            title = f"Studio Match Recap: {self.engine.home_team.name} {self.score_home} - {self.score_away} {self.engine.away_team.name}"
+            title = f"Studio Match Intelligence: {self.engine.home_team.name} {self.score_home} - {self.score_away} {self.engine.away_team.name}"
             summary = (
-                f"A thrilling tactical battle at the highest tempo. {self.engine.home_team.name} maintained "
-                f"{stats_h.possession_pct}% possession, generating {stats_h.total_xG:.2f} xG across {stats_h.total_shots} shots. "
-                f"{self.engine.away_team.name} responded with lethal direct transitions, recording {stats_a.total_xG:.2f} xG "
-                f"and {stats_a.tackles_won} key tackles won."
+                f"A high-octane Premier League tactical battle. {self.engine.home_team.name} held {stats_h.possession_pct}% possession "
+                f"and produced {stats_h.total_xG:.2f} xG from {stats_h.total_shots} total attempts. "
+                f"{self.engine.away_team.name} generated {stats_a.total_xG:.2f} xG through clinical direct counter-attacks "
+                f"and {stats_a.tackles_won} won tackles."
             )
-            key_takeaway = "Superior territorial dominance and high-speed passing unlocked defensive low blocks."
+            key_takeaway = "Superior spatial dominance and rapid line-breaking distribution in the half-spaces proved decisive."
 
         return {
             "title": title,
