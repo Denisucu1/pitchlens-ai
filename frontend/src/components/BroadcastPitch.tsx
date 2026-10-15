@@ -220,12 +220,15 @@ export const BroadcastPitch: React.FC<BroadcastPitchProps> = ({
           <div className="w-1.5 h-1.5 rounded-full bg-black/80"></div>
         </div>
 
-        {latestEvent?.ball_speed_kmh && (
-          <div className="mt-1 bg-black/95 text-[#00FF87] border border-[#00FF87]/40 px-1.5 py-0.5 rounded text-[8px] font-mono font-bold flex items-center gap-0.5 shadow-lg whitespace-nowrap">
-            <Zap className="w-2.5 h-2.5 text-yellow-400" />
-            <span>{latestEvent.ball_speed_kmh} km/h</span>
-          </div>
-        )}
+        {/* Live Shot Speed Badge (Only shown on shots and goals!) */}
+        {latestEvent &&
+          (latestEvent.event_type === "shot" || latestEvent.event_type === "goal") &&
+          (latestEvent.shot_speed_kmh || latestEvent.ball_speed_kmh) && (
+            <div className="mt-1 bg-black/95 text-yellow-300 border-2 border-yellow-400 px-2 py-0.5 rounded-lg text-[9px] font-mono font-black flex items-center gap-1 shadow-[0_0_15px_rgba(255,200,0,0.7)] whitespace-nowrap animate-bounce">
+              <Zap className="w-3 h-3 text-yellow-400" />
+              <span>SHOT SPEED: {latestEvent.shot_speed_kmh || latestEvent.ball_speed_kmh} km/h</span>
+            </div>
+          )}
       </div>
 
       {/* Floating Spatial Controls Over Pitch */}

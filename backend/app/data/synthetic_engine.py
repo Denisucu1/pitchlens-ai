@@ -11,6 +11,7 @@ class SyntheticMatchEngine:
     """
     High-fidelity realistic Premier League Match Simulator calibrated to authentic Opta match dynamics:
     - Structured Positional Buildup: Teams build from the back (GK/CBs) -> Midfield progression -> Final third
+    - Controlled Tactical Movements: Whole team lines step up, drop, and slide laterally as a compact unit
     - Sustained Possession Strings: 8 to 20 consecutive passes before turnovers
     - Realistic distances: 10m to 28m ground passes between tactical partners (no random pitch jumps)
     - Realistic scorelines (1-0, 2-1, 1-1, 0-0, 2-0) and 10-15 total shots per team across 90 minutes
@@ -22,15 +23,41 @@ class SyntheticMatchEngine:
         self.home_team = all_teams.get(home_team_id, all_teams["arsenal"])
         self.away_team = all_teams.get(away_team_id, all_teams["mancity"])
 
-        # Reset initial tactical positions
-        self._reset_player_base_positions()
+        # Base formation anchors (normalized)
+        self.home_base_anchors = {
+            "GK": (6.0, 50.0),
+            "RB": (26.0, 84.0),
+            "CB_R": (20.0, 62.0),
+            "CB_L": (20.0, 38.0),
+            "LB": (26.0, 16.0),
+            "CDM": (38.0, 50.0),
+            "CM": (46.0, 36.0),
+            "CAM": (56.0, 62.0),
+            "RW": (66.0, 84.0),
+            "LW": (66.0, 16.0),
+            "ST": (72.0, 50.0)
+        }
+
+        self.away_base_anchors = {
+            "GK": (94.0, 50.0),
+            "RB": (74.0, 16.0),
+            "CB_R": (80.0, 38.0),
+            "CB_L": (80.0, 62.0),
+            "LB": (74.0, 84.0),
+            "CDM": (62.0, 50.0),
+            "CM": (54.0, 64.0),
+            "CAM": (44.0, 38.0),
+            "RW": (34.0, 16.0),
+            "LW": (34.0, 84.0),
+            "ST": (28.0, 50.0)
+        }
 
         self.minute = 1
         self.second = 0
         self.period = "1H"
         self.chain_id = 1
         self.possession_team_id = self.home_team.id
-        self.current_ball_pos = PitchCoordinates(x=20.0, y=50.0)  # Starts with CBs building up
+        self.current_ball_pos = PitchCoordinates(x=20.0, y=50.0)
         self.events_history: List[MatchEvent] = []
 
         # Possession phase: 0 = Defensive Buildup, 1 = Midfield Circulation, 2 = Attacking Penetration
@@ -48,51 +75,72 @@ class SyntheticMatchEngine:
         self.heatmap_cells: List[PitchCoordinates] = []
         self.timeline_moments: List[Dict] = []
 
-    def _reset_player_base_positions(self):
-        """Sets standard tactical coordinates for 4-3-3 / 4-2-3-1 formations."""
-        # Home team (plays Left to Right: attacking x=100)
-        h_pos = {
-            "GK": (6.0, 50.0),
-            "RB": (28.0, 84.0),
-            "CB": [(22.0, 62.0), (22.0, 38.0)],
-            "LB": (28.0, 16.0),
-            "CDM": (40.0, 50.0),
-            "CM": (48.0, 36.0),
-            "CAM": (56.0, 62.0),
-            "RW": (68.0, 82.0),
-            "LW": (68.0, 18.0),
-            "ST": (72.0, 50.0)
-        }
-        cb_idx = 0
+        # Initialize player positions
+        self._update_controlled_tactical_positions(is_home=True)
+
+    def _update_controlled_tactical_positions(self, is_home: bool):
+        """
+        Coordinates organic, controlled tactical movement of all 22 players.
+        Teams move together in compact defensive and attacking blocks:
+        - When attacking, defensive lines push up together by 10-18m.
+        - Defending teams slide laterally towards the ball to close passing channels.
+        - No erratic jumps: smooth, bounded position shifts.
+        """
+        ball_y_shift = (self.current_ball_pos.y - 50.0) * 0.18  # Compact block tilts slightly toward ball
+
+        # Phase forward push multiplier
+        # Phase 0 (buildup): standard
+        # Phase 1 (midfield): +10m push
+        # Phase 2 (attacking box): +20m push
+        attack_x_push = 0.0 if self.possession_phase == 0 else (10.0 if self.possession_phase == 1 else 18.0)
+        defense_x_drop = 0.0 if self.possession_phase == 0 else (8.0 if self.possession_phase == 1 else 16.0)
+
+        # 1. Update Home Team Players
+        cb_count = 0
         for p in self.home_team.players:
             if p.position == "CB":
-                coords = h_pos["CB"][cb_idx]
-                cb_idx = (cb_idx + 1) % 2
+                anchor_key = "CB_R" if cb_count == 0 else "CB_L"
+                cb_count += 1
             else:
-                coords = h_pos.get(p.position, (50.0, 50.0))
-            p.current_coords = PitchCoordinates(x=coords[0], y=coords[1])
+                anchor_key = p.position
 
-        # Away team (plays Right to Left: attacking x=0)
-        a_pos = {
-            "GK": (94.0, 50.0),
-            "RB": (72.0, 16.0),
-            "CB": [(78.0, 38.0), (78.0, 62.0)],
-            "LB": (72.0, 84.0),
-            "CDM": (60.0, 50.0),
-            "CM": (52.0, 64.0),
-            "CAM": (44.0, 38.0),
-            "RW": (32.0, 18.0),
-            "LW": (32.0, 82.0),
-            "ST": (28.0, 50.0)
-        }
-        cb_idx_a = 0
+            base_x, base_y = self.home_base_anchors.get(anchor_key, (50.0, 50.0))
+
+            if is_home:
+                # Home team is attacking -> push up as a compact unit
+                new_x = base_x + (attack_x_push * (0.8 if p.position == "GK" else 1.0))
+                new_y = base_y + ball_y_shift + random.uniform(-1.5, 1.5)
+            else:
+                # Home team is defending -> drop back towards own goal, stay compact
+                new_x = max(10.0, base_x - (defense_x_drop * 0.8))
+                new_y = base_y + (ball_y_shift * 0.7) + random.uniform(-1.5, 1.5)
+
+            # Clamp within realistic football boundaries
+            p.current_coords.x = round(max(3.0, min(96.0, new_x)), 1)
+            p.current_coords.y = round(max(6.0, min(94.0, new_y)), 1)
+
+        # 2. Update Away Team Players
+        cb_count_a = 0
         for p in self.away_team.players:
             if p.position == "CB":
-                coords = a_pos["CB"][cb_idx_a]
-                cb_idx_a = (cb_idx_a + 1) % 2
+                anchor_key_a = "CB_R" if cb_count_a == 0 else "CB_L"
+                cb_count_a += 1
             else:
-                coords = a_pos.get(p.position, (50.0, 50.0))
-            p.current_coords = PitchCoordinates(x=coords[0], y=coords[1])
+                anchor_key_a = p.position
+
+            base_x, base_y = self.away_base_anchors.get(anchor_key_a, (50.0, 50.0))
+
+            if not is_home:
+                # Away team is attacking (moving leftwards towards x=0)
+                new_x = base_x - (attack_x_push * (0.8 if p.position == "GK" else 1.0))
+                new_y = base_y + ball_y_shift + random.uniform(-1.5, 1.5)
+            else:
+                # Away team is defending -> drop back towards x=90
+                new_x = min(90.0, base_x + (defense_x_drop * 0.8))
+                new_y = base_y + (ball_y_shift * 0.7) + random.uniform(-1.5, 1.5)
+
+            p.current_coords.x = round(max(3.0, min(96.0, new_x)), 1)
+            p.current_coords.y = round(max(6.0, min(94.0, new_y)), 1)
 
     def _calculate_pitch_distance_meters(self, p1: PitchCoordinates, p2: PitchCoordinates) -> float:
         dx = (p2.x - p1.x) * 1.05
@@ -104,26 +152,20 @@ class SyntheticMatchEngine:
         team = self.home_team if is_home else self.away_team
         candidates = [p for p in team.players if p.id != actor.id]
 
-        # Phase 0: Buildup -> pass to nearby CBs, FBs, or CDMs
         if self.possession_phase == 0:
             preferred = [p for p in candidates if p.position in ["GK", "CB", "LB", "RB", "CDM"]]
             return preferred if preferred else candidates
-
-        # Phase 1: Progression -> pass to CDMs, CMs, CAM, or advancing FBs
         elif self.possession_phase == 1:
             preferred = [p for p in candidates if p.position in ["CDM", "CM", "CAM", "LB", "RB", "LW", "RW"]]
             return preferred if preferred else candidates
-
-        # Phase 2: Final Third -> pass to Wingers, ST, or CAM in the box
         else:
             preferred = [p for p in candidates if p.position in ["CAM", "ST", "LW", "RW", "CM"]]
             return preferred if preferred else candidates
 
     def generate_next_event(self) -> MatchEvent:
         """
-        Generates realistic football play following genuine tactical phases.
+        Generates realistic football play with organic controlled player movement.
         """
-        # Clock progression: 3-6 seconds per pass/action
         time_jump = random.randint(3, 6)
         self.second += time_jump
         if self.second >= 60:
@@ -163,6 +205,9 @@ class SyntheticMatchEngine:
         else:
             self.possession_phase = 2  # Final third chance creation
 
+        # Shift all 22 players in a controlled tactical block!
+        self._update_controlled_tactical_positions(is_home=is_home)
+
         under_pressure = (self.possession_phase == 2) or (random.random() < 0.28)
         pressure_intensity = random.uniform(45.0, 85.0) if under_pressure else random.uniform(10.0, 30.0)
 
@@ -184,7 +229,6 @@ class SyntheticMatchEngine:
             dy = (goal_target.y - self.current_ball_pos.y) * 0.68
             dist = math.sqrt(dx**2 + dy**2)
 
-            # Realistic xG calculation
             base_xg = 0.42 if dist < 12 else (0.18 if dist < 20 else 0.05)
             xg = round(base_xg * random.uniform(0.85, 1.2), 2)
             shot_speed = round(random.uniform(88.0, 118.0), 1)
@@ -192,7 +236,7 @@ class SyntheticMatchEngine:
             actor.sprint_count += 1
             actor.current_speed_kmh = round(random.uniform(27.0, 32.5), 1)
 
-            # Realistic goal probability: only 1 to 3 goals per full match
+            # Realistic goal probability
             dice = random.random()
             if dice < xg and team_goals < 3 and random.random() < 0.35:
                 outcome = ShotOutcome.GOAL
@@ -248,7 +292,7 @@ class SyntheticMatchEngine:
             self.events_history.append(event)
             return event
 
-        # 2. DEFENSIVE TACKLE / TURNOVER (Rare: only ~8% chance per event, mostly after 10+ passes)
+        # 2. DEFENSIVE TACKLE / TURNOVER
         turnover_chance = 0.18 if self.passes_in_current_chain > 12 else 0.07
         if under_pressure and random.random() < turnover_chance:
             defender = self.away_team.players[2] if is_home else self.home_team.players[2]
@@ -270,7 +314,7 @@ class SyntheticMatchEngine:
                 possession_chain_id=f"chain_{self.chain_id}"
             )
 
-            # Flip possession and reset buildup phase for new team
+            # Flip possession
             self.possession_team_id = defending_team.id
             self.chain_id += 1
             self.passes_in_current_chain = 0
@@ -278,32 +322,23 @@ class SyntheticMatchEngine:
             self.events_history.append(event)
             return event
 
-        # 3. STRUCTURED PASSING COMBINATION (90%+ of standard play)
+        # 3. STRUCTURED PASSING COMBINATION (Core 90% action)
         teammates = self._get_tactical_teammates(actor, is_home)
         recipient = random.choice(teammates)
 
-        # Natural incremental shift towards target zone
-        step_forward = random.uniform(8.0, 18.0) if is_home else random.uniform(-18.0, -8.0)
-        lateral_step = random.uniform(-15.0, 15.0)
-
-        target_x = max(8.0, min(92.0, recipient.current_coords.x + (step_forward * 0.3)))
-        target_y = max(10.0, min(90.0, recipient.current_coords.y + lateral_step))
-        target_coords = PitchCoordinates(x=round(target_x, 1), y=round(target_y, 1))
-
+        target_coords = PitchCoordinates(x=recipient.current_coords.x, y=recipient.current_coords.y)
         dist_m = self._calculate_pitch_distance_meters(self.current_ball_pos, target_coords)
-        difficulty = round(min(0.88, max(0.08, (dist_m / 45.0) * 0.4 + (0.2 if under_pressure else 0.05))), 2)
+        difficulty = round(min(0.85, max(0.08, (dist_m / 45.0) * 0.4 + (0.18 if under_pressure else 0.05))), 2)
 
         ball_speed = round(random.uniform(42.0, 68.0), 1)
         actor.current_speed_kmh = round(random.uniform(14.0, 22.0), 1)
         actor.distance_covered_meters += dist_m
 
-        # Premier League high completion rate (88-94%)
-        is_complete = random.random() < 0.91
+        is_complete = random.random() < 0.92
 
         if is_complete:
             outcome = PassOutcome.COMPLETE
             self.current_ball_pos = target_coords
-            recipient.current_coords = target_coords
 
             # Track in pass matrix
             if actor.id not in self.pass_matrix:
