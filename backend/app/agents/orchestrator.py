@@ -65,7 +65,25 @@ class PitchLensOrchestrator:
         self.score_away = 0
         self.focused_player_id = self.engine.home_team.players[8].id if len(self.engine.home_team.players) > 8 else None
         self.agent_logs.clear()
-        self.tick()
+        self.history.clear()
+        return self.tick()
+
+    def reset_match(self) -> LiveMatchPayload:
+        """Resets the match to minute 0:00 for the current fixture."""
+        self.engine = SyntheticMatchEngine(
+            home_team_id=self.home_team_id,
+            away_team_id=self.away_team_id,
+            match_id=f"EPL-{self.home_team_id.upper()}-{self.away_team_id.upper()}"
+        )
+        self.stage_b = MatchInterpretationEngine(
+            home_team_id=self.home_team_id,
+            away_team_id=self.away_team_id
+        )
+        self.score_home = 0
+        self.score_away = 0
+        self.agent_logs.clear()
+        self.history.clear()
+        return self.tick()
 
     def set_focused_player(self, player_id: Optional[str]):
         self.focused_player_id = player_id
@@ -161,6 +179,8 @@ class PitchLensOrchestrator:
             current_second=event.second,
             score_home=self.score_home,
             score_away=self.score_away,
+            is_finished=self.engine.is_finished,
+            is_half_time=self.engine.is_half_time,
             latest_event=event,
             stats_home=stats_h,
             stats_away=stats_a,
@@ -172,7 +192,9 @@ class PitchLensOrchestrator:
             agent_logs=list(self.agent_logs),
             pass_links=pass_links_list,
             heatmap_points=self.engine.heatmap_cells,
-            timeline_moments=self.engine.timeline_moments
+            timeline_moments=self.engine.timeline_moments,
+            home_players=self.engine.home_team.players,
+            away_players=self.engine.away_team.players
         )
 
         self.current_payload = payload

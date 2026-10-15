@@ -74,6 +74,11 @@ async def trigger_manual_tick():
     """Advances match simulation by one event cycle."""
     return global_orchestrator.tick()
 
+@router.post("/reset")
+async def reset_match():
+    """Resets the match to minute 0:00."""
+    return global_orchestrator.reset_match()
+
 @router.post("/focus-player")
 async def set_focus_player(req: FocusPlayerRequest):
     """Sets focused player for Player-Focused Experience mode."""

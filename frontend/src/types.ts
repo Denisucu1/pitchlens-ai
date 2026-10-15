@@ -164,6 +164,8 @@ export interface LiveMatchPayload {
   current_second: number;
   score_home: number;
   score_away: number;
+  is_finished?: boolean;
+  is_half_time?: boolean;
   latest_event: MatchEvent;
   stats_home: TeamMatchStats;
   stats_away: TeamMatchStats;
@@ -176,6 +178,8 @@ export interface LiveMatchPayload {
   pass_links: PassLink[];
   heatmap_points: PitchCoordinates[];
   timeline_moments: TimelineMoment[];
+  home_players?: PlayerProfile[];
+  away_players?: PlayerProfile[];
 }
 
 export interface ClubSummary {

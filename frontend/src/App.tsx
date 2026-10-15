@@ -212,6 +212,20 @@ export function App() {
     }
   };
 
+  const handleResetMatch = async () => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ action: "RESET" }));
+    } else {
+      try {
+        const res = await fetch("http://localhost:8000/api/match/reset", { method: "POST" });
+        const data = await res.json();
+        setPayload(data);
+      } catch (err) {
+        console.error("Failed to reset match", err);
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#0c0314] text-white flex flex-col font-sans selection:bg-[#00FF87] selection:text-black">
       {/* Top Bar */}
@@ -230,6 +244,7 @@ export function App() {
         toggleAudio={() => setIsAudioEnabled(!isAudioEnabled)}
         clubs={clubs}
         onSwitchFixture={handleSwitchFixture}
+        onResetMatch={handleResetMatch}
       />
 
       {/* Main Studio Console */}
@@ -242,6 +257,8 @@ export function App() {
               latestEvent={payload?.latest_event || null}
               homeTeam={homeTeam}
               awayTeam={awayTeam}
+              homePlayers={payload?.home_players}
+              awayPlayers={payload?.away_players}
               focusedPlayer={focusedPlayer}
               onSelectPlayer={handleSelectPlayer}
               heatmapPoints={payload?.heatmap_points || []}

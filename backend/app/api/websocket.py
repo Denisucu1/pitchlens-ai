@@ -2,6 +2,7 @@ import asyncio
 import json
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from typing import Set
+from app.data.models import Language
 from app.api.routes import global_orchestrator
 from app.config import settings
 
@@ -86,6 +87,12 @@ async def websocket_endpoint(websocket: WebSocket):
             elif action == "STEP":
                 payload = global_orchestrator.tick()
                 await websocket.send_json({
+                    "type": "MATCH_TICK",
+                    "data": payload.model_dump(mode="json")
+                })
+            elif action == "RESET":
+                payload = global_orchestrator.reset_match()
+                await manager.broadcast({
                     "type": "MATCH_TICK",
                     "data": payload.model_dump(mode="json")
                 })

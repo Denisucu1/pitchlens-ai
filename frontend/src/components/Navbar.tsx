@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import type { PersonaMode, Language, LiveMatchPayload, ClubSummary } from "../types";
-import { Play, Pause, FastForward, Globe, User, BarChart3, Tv, FileText, Volume2, VolumeX, Shuffle } from "lucide-react";
+import { Play, Pause, FastForward, Globe, User, BarChart3, Tv, FileText, Volume2, VolumeX, Shuffle, RotateCcw } from "lucide-react";
 
 interface NavbarProps {
   payload: LiveMatchPayload | null;
@@ -17,6 +17,7 @@ interface NavbarProps {
   toggleAudio: () => void;
   clubs: ClubSummary[];
   onSwitchFixture: (homeId: string, awayId: string) => void;
+  onResetMatch: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -34,6 +35,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   toggleAudio,
   clubs: _clubs,
   onSwitchFixture,
+  onResetMatch,
 }) => {
   const [showFixtureSelector, setShowFixtureSelector] = useState(false);
 
@@ -97,9 +99,21 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           <div className="border-l border-gray-700 pl-2.5 flex items-center gap-1.5 font-mono text-xs text-yellow-400 font-bold">
-            <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
-            {payload.current_minute}:{payload.current_second.toString().padStart(2, "0")}
-            <span className="text-gray-400 ml-1">({payload.latest_event.period})</span>
+            {payload.is_finished ? (
+              <span className="bg-amber-400 text-black px-1.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider animate-pulse">
+                FULL TIME (FT)
+              </span>
+            ) : payload.is_half_time ? (
+              <span className="bg-blue-400 text-black px-1.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider">
+                HALF TIME (HT)
+              </span>
+            ) : (
+              <>
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+                {payload.current_minute}:{payload.current_second.toString().padStart(2, "0")}
+                <span className="text-gray-400 ml-1">({payload.latest_event.period})</span>
+              </>
+            )}
           </div>
 
           {/* Fixture Selector Button */}
@@ -224,6 +238,18 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <FastForward className="w-3.5 h-3.5" />
             <span>{speed}x</span>
+          </button>
+          <button
+            onClick={onResetMatch}
+            className={`p-1.5 rounded transition-all flex items-center gap-1 ${
+              payload?.is_finished
+                ? "bg-amber-500 text-black hover:bg-amber-400 font-bold px-2 animate-bounce shadow-md"
+                : "hover:bg-[#38003c] text-gray-300 hover:text-white"
+            }`}
+            title="Restart Match from 00:00"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            {payload?.is_finished && <span className="text-[10px]">Restart</span>}
           </button>
         </div>
 

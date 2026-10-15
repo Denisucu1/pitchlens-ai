@@ -6,6 +6,8 @@ interface BroadcastPitchProps {
   latestEvent: MatchEvent | null;
   homeTeam: TeamProfile | null;
   awayTeam: TeamProfile | null;
+  homePlayers?: PlayerProfile[];
+  awayPlayers?: PlayerProfile[];
   focusedPlayer: PlayerProfile | null;
   onSelectPlayer: (player: PlayerProfile) => void;
   heatmapPoints?: PitchCoordinates[];
@@ -16,6 +18,8 @@ export const BroadcastPitch: React.FC<BroadcastPitchProps> = ({
   latestEvent,
   homeTeam,
   awayTeam,
+  homePlayers = [],
+  awayPlayers = [],
   focusedPlayer,
   onSelectPlayer,
   heatmapPoints = [],
@@ -37,8 +41,10 @@ export const BroadcastPitch: React.FC<BroadcastPitchProps> = ({
     return "#00FF87"; // Standard
   };
 
-  // Helper map to find player coordinates for pass network
-  const allPlayers = [...(homeTeam?.players || []), ...(awayTeam?.players || [])];
+  // Dynamic player coordinates from live payload ticks (fallback to initial team squad)
+  const currentHomePlayers = homePlayers.length > 0 ? homePlayers : (homeTeam?.players || []);
+  const currentAwayPlayers = awayPlayers.length > 0 ? awayPlayers : (awayTeam?.players || []);
+  const allPlayers = [...currentHomePlayers, ...currentAwayPlayers];
   const playerMap = new Map(allPlayers.map((p) => [p.id, p]));
 
   return (
@@ -112,9 +118,9 @@ export const BroadcastPitch: React.FC<BroadcastPitchProps> = ({
         )}
       </svg>
 
-      {/* Heatmap Overlay (Canvas-like glow effect) */}
+      {/* Heatmap Overlay (High-Visibility Opta / SofaScore Style) */}
       {showHeatmap && (
-        <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-75">
+        <div className="absolute inset-0 pointer-events-none overflow-hidden z-10">
           {heatmapPoints.map((pt, idx) => (
             <div
               key={`hm_${idx}`}
@@ -122,15 +128,22 @@ export const BroadcastPitch: React.FC<BroadcastPitchProps> = ({
                 left: `${pt.x}%`,
                 top: `${pt.y}%`,
                 transform: "translate(-50%, -50%)",
+                background: "radial-gradient(circle, rgba(255, 40, 0, 0.8) 0%, rgba(255, 150, 0, 0.55) 45%, rgba(255, 220, 0, 0.25) 75%, transparent 100%)",
               }}
-              className="absolute w-12 h-12 rounded-full bg-gradient-to-r from-yellow-400/30 via-red-500/30 to-rose-600/20 blur-md pointer-events-none"
+              className="absolute w-20 h-20 rounded-full blur-[5px] pointer-events-none"
             />
           ))}
+          {/* Active Heatmap Legend Badge */}
+          <div className="absolute bottom-2 left-2 bg-black/85 backdrop-blur px-2.5 py-1 rounded-md text-[9px] text-gray-200 font-mono border border-amber-500/40 flex items-center gap-1.5 pointer-events-none shadow-lg">
+            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+            <span className="text-amber-400 font-bold">TERRITORIAL HEATMAP</span>
+            <span className="text-gray-400">({heatmapPoints.length} active zones)</span>
+          </div>
         </div>
       )}
 
-      {/* Render Players - Home Team */}
-      {homeTeam?.players.map((p) => {
+      {/* Render Players - Home Team (Live Dynamic Coordinates) */}
+      {currentHomePlayers.map((p) => {
         const isFocused = focusedPlayer?.id === p.id;
         const isActor = latestEvent?.player.id === p.id;
         return (
@@ -142,14 +155,14 @@ export const BroadcastPitch: React.FC<BroadcastPitchProps> = ({
               top: `${p.current_coords.y}%`,
               transform: "translate(-50%, -50%)",
             }}
-            className="absolute cursor-pointer transition-all duration-700 ease-out z-20 group flex flex-col items-center"
+            className="absolute cursor-pointer transition-all duration-1000 ease-in-out z-20 group flex flex-col items-center"
           >
             {isFocused && (
               <span className="absolute -inset-2.5 rounded-full border-2 border-[#04F5FF] animate-ping opacity-75 pointer-events-none" />
             )}
 
             <div
-              style={{ backgroundColor: homeTeam.primary_color }}
+              style={{ backgroundColor: homeTeam?.primary_color || "#EF0107" }}
               className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[10px] text-white shadow-lg border-2 transition-transform duration-200 group-hover:scale-125 ${
                 isActor
                   ? "border-yellow-300 scale-110 shadow-yellow-500/50"
@@ -168,8 +181,8 @@ export const BroadcastPitch: React.FC<BroadcastPitchProps> = ({
         );
       })}
 
-      {/* Render Players - Away Team */}
-      {awayTeam?.players.map((p) => {
+      {/* Render Players - Away Team (Live Dynamic Coordinates) */}
+      {currentAwayPlayers.map((p) => {
         const isFocused = focusedPlayer?.id === p.id;
         const isActor = latestEvent?.player.id === p.id;
         return (
@@ -181,14 +194,14 @@ export const BroadcastPitch: React.FC<BroadcastPitchProps> = ({
               top: `${p.current_coords.y}%`,
               transform: "translate(-50%, -50%)",
             }}
-            className="absolute cursor-pointer transition-all duration-700 ease-out z-20 group flex flex-col items-center"
+            className="absolute cursor-pointer transition-all duration-1000 ease-in-out z-20 group flex flex-col items-center"
           >
             {isFocused && (
               <span className="absolute -inset-2.5 rounded-full border-2 border-[#04F5FF] animate-ping opacity-75 pointer-events-none" />
             )}
 
             <div
-              style={{ backgroundColor: awayTeam.primary_color }}
+              style={{ backgroundColor: awayTeam?.primary_color || "#6CABDD" }}
               className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[10px] text-white shadow-lg border-2 transition-transform duration-200 group-hover:scale-125 ${
                 isActor
                   ? "border-yellow-300 scale-110 shadow-yellow-500/50"

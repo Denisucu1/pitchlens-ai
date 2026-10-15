@@ -52,14 +52,13 @@ class PlayerProfile(BaseModel):
     id: str
     name: str
     number: int
-    position: str  # GK, CB, LB, RB, CM, CDM, CAM, LW, RW, ST
+    position: str
     team_id: str
     pace: int = 75
     stamina: int = 80
     passing_skill: int = 75
     shooting_skill: int = 70
     
-    # Real-time tracking telemetry
     current_speed_kmh: float = 0.0
     distance_covered_meters: float = 0.0
     sprint_count: int = 0
@@ -71,7 +70,7 @@ class TeamProfile(BaseModel):
     short_name: str
     primary_color: str
     secondary_color: str
-    formation: str  # e.g., "4-3-3", "4-2-3-1"
+    formation: str
     manager: str
     tactical_style: str
     players: List[PlayerProfile] = []
@@ -82,32 +81,27 @@ class MatchEvent(BaseModel):
     match_id: str
     minute: int
     second: int
-    period: Literal["1H", "2H", "ET"] = "1H"
+    period: Literal["1H", "2H", "ET", "FT"] = "1H"
     team_id: str
     player: PlayerProfile
     recipient: Optional[PlayerProfile] = None
     event_type: EventType
     
-    # Spatial Tracking
     location: PitchCoordinates
     end_location: Optional[PitchCoordinates] = None
     
-    # Speed Metrics (Hackathon Required)
     ball_speed_kmh: Optional[float] = None
     shot_speed_kmh: Optional[float] = None
     player_speed_kmh: float = 0.0
     
-    # Pass Quality Metrics (Hackathon Required)
     pass_distance_m: Optional[float] = None
     pass_difficulty_rating: Optional[float] = Field(None, ge=0.0, le=1.0)
     pass_outcome: Optional[PassOutcome] = None
     
-    # Expected Metrics
     xG: Optional[float] = Field(None, ge=0.0, le=1.0)
     xA: Optional[float] = Field(None, ge=0.0, le=1.0)
     shot_outcome: Optional[ShotOutcome] = None
     
-    # Tactical context
     under_pressure: bool = False
     pressure_intensity: float = Field(0.0, ge=0.0, le=100.0)
     possession_chain_id: str = "chain_0"
@@ -182,7 +176,7 @@ class PersonalizedNarrative(BaseModel):
 
 # --- MULTI-AGENT ORCHESTRATION LOG SCHEMA ---
 class AgentLog(BaseModel):
-    agent_name: str  # Orchestrator, Tactical, Narrative, Graphics, Fan
+    agent_name: str
     role: str
     message: str
     timestamp: str
@@ -200,6 +194,8 @@ class LiveMatchPayload(BaseModel):
     current_second: int
     score_home: int
     score_away: int
+    is_finished: bool = False
+    is_half_time: bool = False
     latest_event: MatchEvent
     stats_home: TeamMatchStats
     stats_away: TeamMatchStats
@@ -212,3 +208,5 @@ class LiveMatchPayload(BaseModel):
     pass_links: List[PassLink] = []
     heatmap_points: List[PitchCoordinates] = []
     timeline_moments: List[Dict[str, Any]] = []
+    home_players: List[PlayerProfile] = []
+    away_players: List[PlayerProfile] = []

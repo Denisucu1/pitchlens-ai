@@ -15,8 +15,8 @@ class Settings(BaseSettings):
     # Direct OpenAI fallback
     OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY", "")
     
-    # Calibrated simulation pacing: 2.8s gives natural breathing room and allows audio commentary to complete
-    SIMULATION_TICK_SECONDS: float = float(os.getenv("SIMULATION_TICK_SECONDS", "2.8"))
+    # Pacing: 4.2 seconds allows genuine broadcast observation, player movement gliding, and commentary digestion
+    SIMULATION_TICK_SECONDS: float = float(os.getenv("SIMULATION_TICK_SECONDS", "4.2"))
     DEFAULT_MATCH_SPEED: float = 1.0
     
     class Config:
