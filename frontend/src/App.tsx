@@ -56,13 +56,27 @@ export function App() {
       .catch((err) => console.error("Could not fetch clubs", err));
   }, []);
 
-  // Web Speech Audio Voice Commentary Synthesis
+  // Web Speech Audio Voice Commentary Synthesis (Calibrated TV Commentator Logic)
   useEffect(() => {
     if (!isAudioEnabled || !payload || !window.speechSynthesis) return;
 
-    const currentEventId = payload.latest_event.event_id;
-    if (currentEventId === lastSpokenEventId.current) return;
-    lastSpokenEventId.current = currentEventId;
+    const currentEvent = payload.latest_event;
+    if (currentEvent.event_id === lastSpokenEventId.current) return;
+
+    // Is it a pivotal event (Goal, Shot, Tackle, High-difficulty pass)?
+    const isPivotal = currentEvent.event_type === "goal" || currentEvent.event_type === "shot" || currentEvent.event_type === "tackle" || (currentEvent.pass_difficulty_rating && currentEvent.pass_difficulty_rating > 0.45);
+    
+    // In standard build-up, only commentate occasionally to avoid non-stop chatter
+    const isBuildUpComment = (payload.current_second % 8 === 0);
+
+    if (!isPivotal && !isBuildUpComment) return;
+
+    // If commentator is already speaking, do NOT interrupt unless it's a GOAL!
+    if (window.speechSynthesis.speaking && currentEvent.event_type !== "goal") {
+      return;
+    }
+
+    lastSpokenEventId.current = currentEvent.event_id;
 
     // Pick narrative based on current persona
     let textToSpeak = payload.narrative.casual_fan_narrative;
@@ -72,13 +86,37 @@ export function App() {
       textToSpeak = payload.narrative.player_focus_narrative;
     }
 
-    // Clean emojis for speech synthesis
-    const cleanText = textToSpeak.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, "");
+    // Strip emojis and bracketed technical tags for clean audio speech
+    const cleanText = textToSpeak
+      .replace(/\[.*?\]/g, "")
+      .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}⭐⚡🔥🛡️⚽👀🎯]/gu, "")
+      .trim();
 
-    window.speechSynthesis.cancel();
+    if (!cleanText) return;
+
+    if (currentEvent.event_type === "goal") {
+      window.speechSynthesis.cancel(); // Interrupt immediately for a goal!
+    }
+
     const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.rate = 1.05;
-    utterance.lang = language === "ro" ? "ro-RO" : language === "es" ? "es-ES" : "en-GB";
+    utterance.rate = 1.0;
+    utterance.pitch = currentEvent.event_type === "goal" ? 1.15 : 1.0;
+
+    const targetLangCode = language === "ro" ? "ro-RO" : language === "es" ? "es-ES" : "en-GB";
+    utterance.lang = targetLangCode;
+
+    // Select suitable voice if installed in browser
+    const voices = window.speechSynthesis.getVoices();
+    const matchedVoice = voices.find((v) =>
+      language === "ro" ? (v.lang.startsWith("ro") || v.name.toLowerCase().includes("romanian") || v.name.toLowerCase().includes("andrei") || v.name.toLowerCase().includes("maria")) :
+      language === "es" ? (v.lang.startsWith("es") || v.name.toLowerCase().includes("spanish")) :
+      (v.lang.startsWith("en") || v.name.toLowerCase().includes("english"))
+    );
+
+    if (matchedVoice) {
+      utterance.voice = matchedVoice;
+    }
+
     window.speechSynthesis.speak(utterance);
   }, [payload, isAudioEnabled, persona, language]);
 

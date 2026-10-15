@@ -22,9 +22,10 @@ class PersonalizationStoryEngine:
         language: Language = Language.EN
     ) -> PersonalizedNarrative:
         
-        if language == Language.RO:
+        lang_str = str(language.value if hasattr(language, "value") else language).lower()
+        if "ro" in lang_str:
             return self._generate_romanian(event, rhythm, focused_player)
-        elif language == Language.ES:
+        elif "es" in lang_str:
             return self._generate_spanish(event, rhythm, focused_player)
         else:
             return self._generate_english(event, rhythm, focused_player)

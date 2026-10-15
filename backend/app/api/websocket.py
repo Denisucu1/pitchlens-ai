@@ -78,7 +78,11 @@ async def websocket_endpoint(websocket: WebSocket):
             elif action == "SET_PLAYER_FOCUS":
                 global_orchestrator.set_focused_player(cmd.get("player_id"))
             elif action == "SET_LANGUAGE":
-                global_orchestrator.set_language(cmd.get("language"))
+                raw_lang = cmd.get("language", "en")
+                try:
+                    global_orchestrator.set_language(Language(raw_lang))
+                except Exception:
+                    global_orchestrator.set_language(raw_lang)
             elif action == "STEP":
                 payload = global_orchestrator.tick()
                 await websocket.send_json({
