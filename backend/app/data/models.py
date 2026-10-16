@@ -187,6 +187,51 @@ class PassLink(BaseModel):
     target_player_id: str
     count: int
 
+# --- LEAGUE STANDINGS & MATCHWEEK (FLASHSCORE STYLE) ---
+class MatchScoreSummary(BaseModel):
+    match_id: str
+    home_team_id: str
+    away_team_id: str
+    home_team_name: str
+    away_team_name: str
+    home_short_name: str
+    away_short_name: str
+    score_home: int
+    score_away: int
+    minute: int
+    period: str = "1H"
+    is_finished: bool = False
+    latest_event_text: str = ""
+
+class LeagueTeamStanding(BaseModel):
+    rank: int
+    previous_rank: int
+    team_id: str
+    team_name: str
+    short_name: str
+    primary_color: str
+    played: int
+    won: int
+    drawn: int
+    lost: int
+    goals_for: int
+    goals_against: int
+    goal_diff: int
+    points: int
+    form: List[str] = ["W", "D", "W", "W", "D"]
+
+class GoalAlert(BaseModel):
+    alert_id: str
+    match_id: str
+    minute: int
+    text: str
+    scorer: str
+    team_name: str
+    home_name: str
+    away_name: str
+    score_home: int
+    score_away: int
+
 # --- COMPLETE LIVE PAYLOAD EMITTED ON EVERY EVENT TICK ---
 class LiveMatchPayload(BaseModel):
     match_id: str
@@ -210,3 +255,7 @@ class LiveMatchPayload(BaseModel):
     timeline_moments: List[Dict[str, Any]] = []
     home_players: List[PlayerProfile] = []
     away_players: List[PlayerProfile] = []
+    league_standings: List[LeagueTeamStanding] = []
+    matchweek_matches: List[MatchScoreSummary] = []
+    latest_goal_alert: Optional[GoalAlert] = None
+

@@ -18,6 +18,9 @@ import { StudioRecapModal } from "./components/StudioRecapModal";
 import { FanChatWidget } from "./components/FanChatWidget";
 import { AgentBrainMonitor } from "./components/AgentBrainMonitor";
 import { MatchTimelineBar } from "./components/MatchTimelineBar";
+import { LeagueStandingsTable } from "./components/LeagueStandingsTable";
+import { MatchweekDrawer } from "./components/MatchweekDrawer";
+import { GoalAlertToast } from "./components/GoalAlertToast";
 
 export function App() {
   const [payload, setPayload] = useState<LiveMatchPayload | null>(null);
@@ -31,6 +34,7 @@ export function App() {
   const [showRecap, setShowRecap] = useState(false);
   const [focusedPlayer, setFocusedPlayer] = useState<PlayerProfile | null>(null);
   const [isAudioEnabled, setIsAudioEnabled] = useState(false);
+  const [activeTab, setActiveTab] = useState<"broadcast" | "standings">("broadcast");
 
   const wsRef = useRef<WebSocket | null>(null);
   const lastSpokenEventId = useRef<string>("");
@@ -207,6 +211,7 @@ export function App() {
       const data = await res.json();
       setHomeTeam(data.home_team);
       setAwayTeam(data.away_team);
+      setActiveTab("broadcast"); // Focus camera on the newly selected match
     } catch (err) {
       console.error("Failed to switch fixture", err);
     }
@@ -245,64 +250,110 @@ export function App() {
         clubs={clubs}
         onSwitchFixture={handleSwitchFixture}
         onResetMatch={handleResetMatch}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
       />
 
-      {/* Main Studio Console */}
-      <main className="flex-1 p-4 md:p-6 max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column (Pitch, Timeline & Narratives) */}
-        <section className="lg:col-span-8 flex flex-col gap-5">
-          {/* Live Pitch with Overlay */}
-          <div className="relative">
-            <BroadcastPitch
-              latestEvent={payload?.latest_event || null}
-              homeTeam={homeTeam}
-              awayTeam={awayTeam}
-              homePlayers={payload?.home_players}
-              awayPlayers={payload?.away_players}
-              focusedPlayer={focusedPlayer}
-              onSelectPlayer={handleSelectPlayer}
-              heatmapPoints={payload?.heatmap_points || []}
-              passLinks={payload?.pass_links || []}
-            />
-            {/* On-Screen Graphic Overlay (Stage D) */}
-            <BroadcastOverlayBanner overlay={payload?.active_overlay || null} />
+      {/* Matchweek 28 Concurrent Fixtures Bar */}
+      <div className="max-w-7xl mx-auto w-full px-4 md:px-6 pt-4">
+        <MatchweekDrawer
+          matches={payload?.matchweek_matches || []}
+          activeHomeId={homeTeam?.id || "arsenal"}
+          activeAwayId={awayTeam?.id || "mancity"}
+          onSelectMatch={handleSwitchFixture}
+        />
+      </div>
+
+      {/* Main Content Area */}
+      <main className="flex-1 p-4 md:p-6 max-w-7xl mx-auto w-full">
+        {activeTab === "broadcast" ? (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Left Column (Pitch, Timeline & Narratives) */}
+            <section className="lg:col-span-8 flex flex-col gap-5">
+              {/* Live Pitch with Overlay */}
+              <div className="relative">
+                <BroadcastPitch
+                  latestEvent={payload?.latest_event || null}
+                  homeTeam={homeTeam}
+                  awayTeam={awayTeam}
+                  homePlayers={payload?.home_players}
+                  awayPlayers={payload?.away_players}
+                  focusedPlayer={focusedPlayer}
+                  onSelectPlayer={handleSelectPlayer}
+                  heatmapPoints={payload?.heatmap_points || []}
+                  passLinks={payload?.pass_links || []}
+                />
+                {/* On-Screen Graphic Overlay (Stage D) */}
+                <BroadcastOverlayBanner overlay={payload?.active_overlay || null} />
+              </div>
+
+              {/* 90-Minute Momentum Timeline Bar */}
+              <MatchTimelineBar
+                currentMinute={payload?.current_minute || 1}
+                currentSecond={payload?.current_second || 0}
+                moments={payload?.timeline_moments || []}
+              />
+
+              {/* Real-time Narrative Stream (Stage E) */}
+              <PersonalizedNarrativeFeed
+                narrative={payload?.narrative || null}
+                persona={persona}
+                latestEvent={payload?.latest_event || null}
+              />
+
+              {/* Agent Brain Activity Monitor (Multi-Agent Orchestration) */}
+              <AgentBrainMonitor logs={payload?.agent_logs || []} />
+            </section>
+
+            {/* Right Column (Tactical Intelligence & Stats) */}
+            <section className="lg:col-span-4 flex flex-col gap-5">
+              {/* Game Rhythm & Control vs Chaos (Stage B) */}
+              <ControlChaosGauge rhythm={payload?.rhythm || null} />
+
+              {/* Explainability Engine (Stage C: Why moments matter) */}
+              <TacticalExplainabilityCard insight={payload?.latest_insight || null} />
+
+              {/* Aggregated Match Telemetry & Stats (Stage B) */}
+              <StatsPanel
+                statsHome={payload?.stats_home || null}
+                statsAway={payload?.stats_away || null}
+                homeTeam={homeTeam}
+                awayTeam={awayTeam}
+              />
+            </section>
           </div>
+        ) : (
+          /* Live Standings View (Flashscore Style) */
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <section className="lg:col-span-8">
+              <LeagueStandingsTable
+                standings={payload?.league_standings || []}
+                currentHomeId={homeTeam?.id}
+                currentAwayId={awayTeam?.id}
+              />
+            </section>
 
-          {/* 90-Minute Momentum Timeline Bar */}
-          <MatchTimelineBar
-            currentMinute={payload?.current_minute || 1}
-            currentSecond={payload?.current_second || 0}
-            moments={payload?.timeline_moments || []}
-          />
+            <section className="lg:col-span-4 flex flex-col gap-5">
+              {/* Game Rhythm & Control vs Chaos (Stage B) */}
+              <ControlChaosGauge rhythm={payload?.rhythm || null} />
 
-          {/* Real-time Narrative Stream (Stage E) */}
-          <PersonalizedNarrativeFeed
-            narrative={payload?.narrative || null}
-            persona={persona}
-            latestEvent={payload?.latest_event || null}
-          />
+              {/* Explainability Engine (Stage C: Why moments matter) */}
+              <TacticalExplainabilityCard insight={payload?.latest_insight || null} />
 
-          {/* Agent Brain Activity Monitor (Multi-Agent Orchestration) */}
-          <AgentBrainMonitor logs={payload?.agent_logs || []} />
-        </section>
-
-        {/* Right Column (Tactical Intelligence & Stats) */}
-        <section className="lg:col-span-4 flex flex-col gap-5">
-          {/* Game Rhythm & Control vs Chaos (Stage B) */}
-          <ControlChaosGauge rhythm={payload?.rhythm || null} />
-
-          {/* Explainability Engine (Stage C: Why moments matter) */}
-          <TacticalExplainabilityCard insight={payload?.latest_insight || null} />
-
-          {/* Aggregated Match Telemetry & Stats (Stage B) */}
-          <StatsPanel
-            statsHome={payload?.stats_home || null}
-            statsAway={payload?.stats_away || null}
-            homeTeam={homeTeam}
-            awayTeam={awayTeam}
-          />
-        </section>
+              {/* Aggregated Match Telemetry & Stats (Stage B) */}
+              <StatsPanel
+                statsHome={payload?.stats_home || null}
+                statsAway={payload?.stats_away || null}
+                homeTeam={homeTeam}
+                awayTeam={awayTeam}
+              />
+            </section>
+          </div>
+        )}
       </main>
+
+      {/* Floating Premier League Goal Alert Toast */}
+      <GoalAlertToast alert={payload?.latest_goal_alert} />
 
       {/* Studio Recap Modal */}
       <StudioRecapModal

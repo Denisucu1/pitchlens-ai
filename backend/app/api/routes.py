@@ -79,6 +79,20 @@ async def reset_match():
     """Resets the match to minute 0:00."""
     return global_orchestrator.reset_match()
 
+@router.get("/standings")
+async def get_league_standings():
+    """Returns the live 'As It Stands' Premier League standings."""
+    return {
+        "standings": global_orchestrator.league_engine.compute_standings()
+    }
+
+@router.get("/matchweek")
+async def get_matchweek_fixtures():
+    """Returns the live status of all 10 Matchweek 28 fixtures."""
+    return {
+        "matches": global_orchestrator.league_engine.get_matchweek_summaries()
+    }
+
 @router.post("/focus-player")
 async def set_focus_player(req: FocusPlayerRequest):
     """Sets focused player for Player-Focused Experience mode."""

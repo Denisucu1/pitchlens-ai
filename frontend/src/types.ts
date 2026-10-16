@@ -158,6 +158,53 @@ export interface TimelineMoment {
   xg: number;
 }
 
+export interface MatchScoreSummary {
+  match_id: string;
+  home_team_id: string;
+  away_team_id: string;
+  home_team_name: string;
+  away_team_name: string;
+  home_short_name: string;
+  away_short_name: string;
+  score_home: number;
+  score_away: number;
+  minute: number;
+  period: string;
+  is_finished: boolean;
+  latest_event_text: string;
+}
+
+export interface LeagueTeamStanding {
+  rank: number;
+  previous_rank: number;
+  team_id: string;
+  team_name: string;
+  short_name: string;
+  primary_color: string;
+  played: number;
+  won: number;
+  drawn: number;
+  lost: number;
+  goals_for: number;
+  goals_against: number;
+  goal_diff: number;
+  points: number;
+  form: string[];
+}
+
+export interface GoalAlert {
+  alert_id: string;
+  match_id: string;
+  minute: number;
+  text: string;
+  scorer: string;
+  team_name: string;
+  home_name: string;
+  away_name: string;
+  score_home: number;
+  score_away: number;
+}
+
 export interface LiveMatchPayload {
   match_id: string;
   current_minute: number;
@@ -180,6 +227,9 @@ export interface LiveMatchPayload {
   timeline_moments: TimelineMoment[];
   home_players?: PlayerProfile[];
   away_players?: PlayerProfile[];
+  league_standings?: LeagueTeamStanding[];
+  matchweek_matches?: MatchScoreSummary[];
+  latest_goal_alert?: GoalAlert | null;
 }
 
 export interface ClubSummary {

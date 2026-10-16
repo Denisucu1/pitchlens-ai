@@ -7,6 +7,7 @@ from app.data.models import (
 )
 from app.data.synthetic_engine import SyntheticMatchEngine
 from app.data.teams_data import get_premier_league_teams
+from app.data.league_engine import PremierLeagueMatchweekEngine
 from app.pipeline.stage_a_ingest import EventIngestionPipeline
 from app.pipeline.stage_b_interpret import MatchInterpretationEngine
 from app.pipeline.stage_c_explain import TacticalExplainabilityEngine
@@ -31,6 +32,7 @@ class PitchLensOrchestrator:
         self.away_team_id = away_team_id
         
         self.engine = SyntheticMatchEngine(home_team_id=home_team_id, away_team_id=away_team_id, match_id=match_id)
+        self.league_engine = PremierLeagueMatchweekEngine()
         
         # 5 Pipeline Stages
         self.stage_a = EventIngestionPipeline()
@@ -83,6 +85,7 @@ class PitchLensOrchestrator:
         self.score_away = 0
         self.agent_logs.clear()
         self.history.clear()
+        self.league_engine.init_matchweek()
         return self.tick()
 
     def set_focused_player(self, player_id: Optional[str]):
@@ -166,12 +169,41 @@ class PitchLensOrchestrator:
             status="processing"
         ))
 
+        # Synchronize featured match with the Premier League Matchweek Engine
+        self.league_engine.sync_featured_match(
+            home_id=self.engine.home_team.id,
+            away_id=self.engine.away_team.id,
+            score_h=self.score_home,
+            score_a=self.score_away,
+            minute=event.minute,
+            is_finished=self.engine.is_finished
+        )
+
+        # Tick concurrent background matches in Matchweek 28
+        self.league_engine.tick_background_matches(
+            current_minute=event.minute,
+            featured_home_id=self.engine.home_team.id,
+            featured_away_id=self.engine.away_team.id
+        )
+
+        if self.league_engine.latest_goal_alert:
+            self.agent_logs.append(AgentLog(
+                agent_name="📢 Matchweek Desk",
+                role="EPL Goal Alert",
+                message=self.league_engine.latest_goal_alert.text,
+                timestamp=time_str,
+                status="alert"
+            ))
+
         # Build Pass Links for Pass Network Visualizer
         pass_links_list: List[PassLink] = []
         for src_id, targets in self.engine.pass_matrix.items():
             for tgt_id, cnt in targets.items():
                 if cnt >= 2:  # Only significant pass connections
                     pass_links_list.append(PassLink(source_player_id=src_id, target_player_id=tgt_id, count=cnt))
+
+        standings = self.league_engine.compute_standings()
+        matchweek_matches = self.league_engine.get_matchweek_summaries()
 
         payload = LiveMatchPayload(
             match_id=self.match_id,
@@ -194,7 +226,10 @@ class PitchLensOrchestrator:
             heatmap_points=self.engine.heatmap_cells,
             timeline_moments=self.engine.timeline_moments,
             home_players=self.engine.home_team.players,
-            away_players=self.engine.away_team.players
+            away_players=self.engine.away_team.players,
+            league_standings=standings,
+            matchweek_matches=matchweek_matches,
+            latest_goal_alert=self.league_engine.latest_goal_alert
         )
 
         self.current_payload = payload

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import type { PersonaMode, Language, LiveMatchPayload, ClubSummary } from "../types";
-import { Play, Pause, FastForward, Globe, User, BarChart3, Tv, FileText, Volume2, VolumeX, Shuffle, RotateCcw } from "lucide-react";
+import { Play, Pause, FastForward, Globe, User, BarChart3, Tv, FileText, Volume2, VolumeX, Shuffle, RotateCcw, Trophy } from "lucide-react";
 
 interface NavbarProps {
   payload: LiveMatchPayload | null;
@@ -18,6 +18,8 @@ interface NavbarProps {
   clubs: ClubSummary[];
   onSwitchFixture: (homeId: string, awayId: string) => void;
   onResetMatch: () => void;
+  activeTab: "broadcast" | "standings";
+  setActiveTab: (t: "broadcast" | "standings") => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -36,6 +38,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   clubs: _clubs,
   onSwitchFixture,
   onResetMatch,
+  activeTab,
+  setActiveTab,
 }) => {
   const [showFixtureSelector, setShowFixtureSelector] = useState(false);
 
@@ -67,6 +71,35 @@ export const Navbar: React.FC<NavbarProps> = ({
             Microsoft Foundry & Premier League Hackathon Edition
           </p>
         </div>
+      </div>
+
+      {/* Main View Switcher: Live Match Studio vs Standings */}
+      <div className="flex items-center bg-[#100418] p-1 rounded-xl border border-[#38003c]">
+        <button
+          onClick={() => setActiveTab("broadcast")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            activeTab === "broadcast"
+              ? "bg-[#38003c] text-[#00FF87] border border-[#00FF87]/40 shadow-md"
+              : "text-gray-400 hover:text-white"
+          }`}
+          title="Interactive Pitch, Tactical Radar & AI Commentary"
+        >
+          <Tv className="w-3.5 h-3.5" />
+          <span>Live Match</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("standings")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            activeTab === "standings"
+              ? "bg-[#38003c] text-[#00FF87] border border-[#00FF87]/40 shadow-md"
+              : "text-gray-400 hover:text-white"
+          }`}
+          title="Live Premier League Standings (Flashscore Style) & Matchweek 28 Hub"
+        >
+          <Trophy className="w-3.5 h-3.5 text-yellow-400" />
+          <span>Standings & Matchweek</span>
+        </button>
       </div>
 
       {/* Live Match Scoreboard & Fixture Switcher */}
