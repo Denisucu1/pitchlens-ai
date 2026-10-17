@@ -14,6 +14,8 @@ interface BroadcastPitchProps {
   passLinks?: PassLink[];
   currentMinute?: number;
   period?: string;
+  homeGameState?: string;
+  awayGameState?: string;
 }
 
 export const BroadcastPitch: React.FC<BroadcastPitchProps> = ({
@@ -28,6 +30,8 @@ export const BroadcastPitch: React.FC<BroadcastPitchProps> = ({
   passLinks = [],
   currentMinute = 1,
   period = "1H",
+  homeGameState = "balanced",
+  awayGameState = "balanced",
 }) => {
   const [showPlayerHeatmap, setShowPlayerHeatmap] = useState(false);
   const [showPassNetwork, setShowPassNetwork] = useState(false);
@@ -146,6 +150,42 @@ export const BroadcastPitch: React.FC<BroadcastPitchProps> = ({
         </div>
       )}
 
+      {/* Dynamic Tactical State Alerts */}
+      {(homeGameState !== "balanced" || awayGameState !== "balanced") && (
+        <div className="absolute top-3 left-3 flex flex-col gap-1 z-30 pointer-events-none">
+          {homeGameState === "all_out_attack" && (
+            <div className="bg-red-950/85 backdrop-blur border border-red-500/70 text-red-200 text-[9px] font-mono font-black px-2 py-0.5 rounded shadow-lg flex items-center gap-1 animate-pulse">
+              <span>⚡ {homeTeam?.short_name || "HOME"}: ALL-OUT ATTACK</span>
+            </div>
+          )}
+          {homeGameState === "park_the_bus" && (
+            <div className="bg-blue-950/85 backdrop-blur border border-blue-500/70 text-blue-200 text-[9px] font-mono font-black px-2 py-0.5 rounded shadow-lg flex items-center gap-1">
+              <span>🛡️ {homeTeam?.short_name || "HOME"}: PARK THE BUS</span>
+            </div>
+          )}
+          {homeGameState === "counter_attack" && (
+            <div className="bg-yellow-950/85 backdrop-blur border border-yellow-500/70 text-yellow-200 text-[9px] font-mono font-black px-2 py-0.5 rounded shadow-lg flex items-center gap-1 animate-bounce">
+              <span>🚀 {homeTeam?.short_name || "HOME"}: COUNTER-ATTACK!</span>
+            </div>
+          )}
+          {awayGameState === "all_out_attack" && (
+            <div className="bg-red-950/85 backdrop-blur border border-red-500/70 text-red-200 text-[9px] font-mono font-black px-2 py-0.5 rounded shadow-lg flex items-center gap-1 animate-pulse">
+              <span>⚡ {awayTeam?.short_name || "AWAY"}: ALL-OUT ATTACK</span>
+            </div>
+          )}
+          {awayGameState === "park_the_bus" && (
+            <div className="bg-blue-950/85 backdrop-blur border border-blue-500/70 text-blue-200 text-[9px] font-mono font-black px-2 py-0.5 rounded shadow-lg flex items-center gap-1">
+              <span>🛡️ {awayTeam?.short_name || "AWAY"}: PARK THE BUS</span>
+            </div>
+          )}
+          {awayGameState === "counter_attack" && (
+            <div className="bg-yellow-950/85 backdrop-blur border border-yellow-500/70 text-yellow-200 text-[9px] font-mono font-black px-2 py-0.5 rounded shadow-lg flex items-center gap-1 animate-bounce">
+              <span>🚀 {awayTeam?.short_name || "AWAY"}: COUNTER-ATTACK!</span>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Attack Direction Indicators on Flanks */}
       <div className="absolute bottom-2 left-3 flex items-center gap-1 text-[9px] font-mono font-bold text-gray-400 bg-black/50 px-2 py-0.5 rounded pointer-events-none border border-white/5">
         <span style={{ color: leftTeam?.primary_color || "#EF0107" }}>{leftTeam?.short_name || "HOME"}</span>
@@ -213,12 +253,13 @@ export const BroadcastPitch: React.FC<BroadcastPitchProps> = ({
           <div
             key={p.id}
             onClick={() => onSelectPlayer(p)}
+            className="absolute cursor-pointer z-20 group flex flex-col items-center"
             style={{
               left: `${p.current_coords.x}%`,
               top: `${p.current_coords.y}%`,
               transform: "translate(-50%, -50%)",
+              transition: "left 750ms cubic-bezier(0.25, 0.46, 0.45, 0.94), top 750ms cubic-bezier(0.25, 0.46, 0.45, 0.94)",
             }}
-            className="absolute cursor-pointer transition-all duration-1000 ease-in-out z-20 group flex flex-col items-center"
           >
             {isFocused && (
               <span className="absolute -inset-2.5 rounded-full border-2 border-[#04F5FF] animate-ping opacity-75 pointer-events-none" />
@@ -252,12 +293,13 @@ export const BroadcastPitch: React.FC<BroadcastPitchProps> = ({
           <div
             key={p.id}
             onClick={() => onSelectPlayer(p)}
+            className="absolute cursor-pointer z-20 group flex flex-col items-center"
             style={{
               left: `${p.current_coords.x}%`,
               top: `${p.current_coords.y}%`,
               transform: "translate(-50%, -50%)",
+              transition: "left 750ms cubic-bezier(0.25, 0.46, 0.45, 0.94), top 750ms cubic-bezier(0.25, 0.46, 0.45, 0.94)",
             }}
-            className="absolute cursor-pointer transition-all duration-1000 ease-in-out z-20 group flex flex-col items-center"
           >
             {isFocused && (
               <span className="absolute -inset-2.5 rounded-full border-2 border-[#04F5FF] animate-ping opacity-75 pointer-events-none" />
@@ -292,7 +334,7 @@ export const BroadcastPitch: React.FC<BroadcastPitchProps> = ({
         }}
         className="absolute z-30 transition-all duration-500 ease-out pointer-events-none flex flex-col items-center"
       >
-        <div className="w-4 h-4 rounded-full bg-white border-2 border-black shadow-[0_0_14px_rgba(255,255,255,0.9)] flex items-center justify-center animate-bounce">
+        <div className="w-4 h-4 rounded-full bg-white border-2 border-black shadow-[0_0_12px_rgba(255,255,255,0.8)] flex items-center justify-center animate-pulse">
           <div className="w-1.5 h-1.5 rounded-full bg-black/80"></div>
         </div>
 

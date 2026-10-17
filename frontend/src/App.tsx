@@ -284,6 +284,8 @@ export function App() {
                   passLinks={payload?.pass_links || []}
                   currentMinute={payload?.current_minute || 1}
                   period={payload?.latest_event?.period || "1H"}
+                  homeGameState={payload?.home_game_state || "balanced"}
+                  awayGameState={payload?.away_game_state || "balanced"}
                 />
                 {/* On-Screen Graphic Overlay (Stage D) */}
                 <BroadcastOverlayBanner overlay={payload?.active_overlay || null} />

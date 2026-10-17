@@ -232,6 +232,8 @@ export interface LiveMatchPayload {
   matchweek_matches?: MatchScoreSummary[];
   latest_goal_alert?: GoalAlert | null;
   player_heatmaps?: Record<string, PitchCoordinates[]>;
+  home_game_state?: string;
+  away_game_state?: string;
 }
 
 export interface ClubSummary {

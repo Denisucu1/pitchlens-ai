@@ -260,4 +260,6 @@ class LiveMatchPayload(BaseModel):
     matchweek_matches: List[MatchScoreSummary] = []
     latest_goal_alert: Optional[GoalAlert] = None
     player_heatmaps: Dict[str, List[PitchCoordinates]] = {}
+    home_game_state: str = "balanced"
+    away_game_state: str = "balanced"
 
