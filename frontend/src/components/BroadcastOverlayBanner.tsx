@@ -51,7 +51,7 @@ export const BroadcastOverlayBanner: React.FC<BroadcastOverlayBannerProps> = ({ 
 
   // Expanded compact state: slim TV lower-third that doesn't obstruct players
   return (
-    <div className="absolute bottom-2 left-2 z-40 max-w-[280px] sm:max-w-[300px] transition-all duration-300 select-none">
+    <div className="absolute bottom-2 left-2 z-40 max-w-[30px] sm:max-w-[300px] transition-all duration-300 select-none">
       <div className="bg-[#12031a]/95 backdrop-blur-md border border-[#00FF87]/70 rounded-xl p-2 shadow-[0_8px_20px_rgba(0,0,0,0.85)] text-white overflow-hidden relative">
         {/* Accent Glow Line */}
         <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-[#00FF87] via-[#04F5FF] to-[#FF2882]" />

@@ -63,6 +63,7 @@ class PlayerProfile(BaseModel):
     distance_covered_meters: float = 0.0
     sprint_count: int = 0
     current_coords: PitchCoordinates = Field(default_factory=lambda: PitchCoordinates(x=50.0, y=50.0))
+    heatmap: List[PitchCoordinates] = []
 
 class TeamProfile(BaseModel):
     id: str
@@ -258,4 +259,5 @@ class LiveMatchPayload(BaseModel):
     league_standings: List[LeagueTeamStanding] = []
     matchweek_matches: List[MatchScoreSummary] = []
     latest_goal_alert: Optional[GoalAlert] = None
+    player_heatmaps: Dict[str, List[PitchCoordinates]] = {}
 

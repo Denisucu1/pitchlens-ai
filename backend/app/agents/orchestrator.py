@@ -229,7 +229,8 @@ class PitchLensOrchestrator:
             away_players=self.engine.away_team.players,
             league_standings=standings,
             matchweek_matches=matchweek_matches,
-            latest_goal_alert=self.league_engine.latest_goal_alert
+            latest_goal_alert=self.league_engine.latest_goal_alert,
+            player_heatmaps=self.engine.player_heatmaps
         )
 
         self.current_payload = payload

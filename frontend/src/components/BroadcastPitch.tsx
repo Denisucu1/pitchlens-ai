@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import type { MatchEvent, PlayerProfile, TeamProfile, PitchCoordinates, PassLink } from "../types";
-import { Zap, Flame, Share2 } from "lucide-react";
+import { Zap, Flame, Share2, ArrowRight, ArrowLeft } from "lucide-react";
 
 interface BroadcastPitchProps {
   latestEvent: MatchEvent | null;
@@ -10,8 +10,10 @@ interface BroadcastPitchProps {
   awayPlayers?: PlayerProfile[];
   focusedPlayer: PlayerProfile | null;
   onSelectPlayer: (player: PlayerProfile) => void;
-  heatmapPoints?: PitchCoordinates[];
+  playerHeatmaps?: Record<string, PitchCoordinates[]>;
   passLinks?: PassLink[];
+  currentMinute?: number;
+  period?: string;
 }
 
 export const BroadcastPitch: React.FC<BroadcastPitchProps> = ({
@@ -22,14 +24,19 @@ export const BroadcastPitch: React.FC<BroadcastPitchProps> = ({
   awayPlayers = [],
   focusedPlayer,
   onSelectPlayer,
-  heatmapPoints = [],
+  playerHeatmaps = {},
   passLinks = [],
+  currentMinute = 1,
+  period = "1H",
 }) => {
-  const [showHeatmap, setShowHeatmap] = useState(false);
+  const [showPlayerHeatmap, setShowPlayerHeatmap] = useState(false);
   const [showPassNetwork, setShowPassNetwork] = useState(false);
 
   const ballPos = latestEvent ? latestEvent.location : { x: 50, y: 50 };
   const endPos = latestEvent?.end_location;
+
+  // Determine if it's 2nd Half (Sides switch!)
+  const is2H = period === "2H" || latestEvent?.period === "2H" || currentMinute > 45;
 
   const getTrajectoryColor = () => {
     if (!latestEvent) return "#00FF87";
@@ -46,6 +53,19 @@ export const BroadcastPitch: React.FC<BroadcastPitchProps> = ({
   const currentAwayPlayers = awayPlayers.length > 0 ? awayPlayers : (awayTeam?.players || []);
   const allPlayers = [...currentHomePlayers, ...currentAwayPlayers];
   const playerMap = new Map(allPlayers.map((p) => [p.id, p]));
+
+  // Active player for individual heatmap
+  const activeHeatmapPlayer = focusedPlayer || (showPlayerHeatmap ? latestEvent?.player : null);
+  const playerPoints =
+    (activeHeatmapPlayer
+      ? playerHeatmaps[activeHeatmapPlayer.id] || activeHeatmapPlayer.heatmap
+      : []) || [];
+
+  // Half-time side awareness:
+  // 1H: Home defends Left (x=0), attacks Right (x=100) -> Left is Home, Right is Away
+  // 2H: Home defends Right (x=100), attacks Left (x=0) -> Left is Away, Right is Home
+  const leftTeam = is2H ? awayTeam : homeTeam;
+  const rightTeam = is2H ? homeTeam : awayTeam;
 
   return (
     <div className="relative w-full aspect-[105/68] bg-gradient-to-br from-[#0e3b1c] to-[#072410] rounded-2xl overflow-hidden border-2 border-emerald-900/60 shadow-2xl select-none">
@@ -118,27 +138,70 @@ export const BroadcastPitch: React.FC<BroadcastPitchProps> = ({
         )}
       </svg>
 
-      {/* Heatmap Overlay (High-Visibility Opta / SofaScore Style) */}
-      {showHeatmap && (
-        <div className="absolute inset-0 pointer-events-none overflow-hidden z-10">
-          {heatmapPoints.map((pt, idx) => (
+      {/* Half-Time Side-Switch Notification Banner */}
+      {is2H && (
+        <div className="absolute top-2.5 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-md px-3 py-1 rounded-full border border-amber-500/50 text-[10px] font-mono font-bold text-amber-300 shadow-xl flex items-center gap-1.5 z-30 pointer-events-none">
+          <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+          <span>🔄 REPRIZA 2 • ECHIPELE AU SCHIMBAT PORȚILE</span>
+        </div>
+      )}
+
+      {/* Attack Direction Indicators on Flanks */}
+      <div className="absolute bottom-2 left-3 flex items-center gap-1 text-[9px] font-mono font-bold text-gray-400 bg-black/50 px-2 py-0.5 rounded pointer-events-none border border-white/5">
+        <span style={{ color: leftTeam?.primary_color || "#EF0107" }}>{leftTeam?.short_name || "HOME"}</span>
+        <ArrowRight className="w-2.5 h-2.5 text-gray-300" />
+      </div>
+      <div className="absolute bottom-2 right-3 flex items-center gap-1 text-[9px] font-mono font-bold text-gray-400 bg-black/50 px-2 py-0.5 rounded pointer-events-none border border-white/5">
+        <ArrowLeft className="w-2.5 h-2.5 text-gray-300" />
+        <span style={{ color: rightTeam?.primary_color || "#6CABDD" }}>{rightTeam?.short_name || "AWAY"}</span>
+      </div>
+
+      {/* Individual Player Heatmap Overlay (High-Precision Opta Clusters) */}
+      {showPlayerHeatmap && (
+        <div className="absolute inset-0 pointer-events-none overflow-hidden z-10 transition-opacity duration-300">
+          {playerPoints.map((pt, idx) => (
             <div
-              key={`hm_${idx}`}
+              key={`phm_${idx}`}
               style={{
                 left: `${pt.x}%`,
                 top: `${pt.y}%`,
                 transform: "translate(-50%, -50%)",
-                background: "radial-gradient(circle, rgba(255, 40, 0, 0.8) 0%, rgba(255, 150, 0, 0.55) 45%, rgba(255, 220, 0, 0.25) 75%, transparent 100%)",
+                background:
+                  "radial-gradient(circle, rgba(255, 35, 0, 0.85) 0%, rgba(255, 140, 0, 0.55) 45%, rgba(255, 230, 0, 0.22) 75%, transparent 100%)",
               }}
-              className="absolute w-20 h-20 rounded-full blur-[5px] pointer-events-none"
+              className="absolute w-20 h-20 rounded-full blur-[6px] pointer-events-none"
             />
           ))}
-          {/* Active Heatmap Legend Badge */}
-          <div className="absolute bottom-2 left-2 bg-black/85 backdrop-blur px-2.5 py-1 rounded-md text-[9px] text-gray-200 font-mono border border-amber-500/40 flex items-center gap-1.5 pointer-events-none shadow-lg">
-            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-            <span className="text-amber-400 font-bold">TERRITORIAL HEATMAP</span>
-            <span className="text-gray-400">({heatmapPoints.length} active zones)</span>
+
+          {/* Active Individual Player Heatmap Legend */}
+          <div className="absolute bottom-7 left-3 bg-black/90 backdrop-blur-md px-3 py-1.5 rounded-lg text-[10px] text-gray-200 font-mono border border-amber-500/50 flex items-center gap-2 pointer-events-none shadow-2xl">
+            <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+            <div className="flex flex-col">
+              <div className="flex items-center gap-1.5">
+                <span className="text-amber-400 font-bold">OPTA HEATMAP:</span>
+                {activeHeatmapPlayer ? (
+                  <>
+                    <span className="text-white font-bold underline">
+                      {activeHeatmapPlayer.name} (#{activeHeatmapPlayer.number})
+                    </span>
+                    <span className="text-gray-400">[{activeHeatmapPlayer.position}]</span>
+                  </>
+                ) : (
+                  <span className="text-yellow-300">Click pe un jucător din teren</span>
+                )}
+              </div>
+              <div className="text-[9px] text-gray-400 mt-0.5">
+                {playerPoints.length} atingeri înregistrate {is2H ? "• (Repriza a 2-a: teren inversat)" : "• (Repriza 1)"}
+              </div>
+            </div>
           </div>
+        </div>
+      )}
+
+      {/* Helper notice if player heatmap toggled but no player focused */}
+      {showPlayerHeatmap && !activeHeatmapPlayer && (
+        <div className="absolute top-12 left-1/2 -translate-x-1/2 bg-black/85 backdrop-blur px-3 py-1.5 rounded-xl border border-amber-500/60 text-amber-300 text-[11px] font-semibold shadow-lg pointer-events-none animate-pulse z-30">
+          👆 Apasă pe orice jucător din teren pentru a-i vedea Heatmap-ul individual
         </div>
       )}
 
@@ -247,16 +310,20 @@ export const BroadcastPitch: React.FC<BroadcastPitchProps> = ({
       {/* Floating Spatial Controls Over Pitch */}
       <div className="absolute top-3 right-3 flex items-center gap-1.5 z-40 bg-black/70 backdrop-blur-md p-1 rounded-xl border border-white/10">
         <button
-          onClick={() => setShowHeatmap(!showHeatmap)}
+          onClick={() => setShowPlayerHeatmap(!showPlayerHeatmap)}
           className={`flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg transition-all ${
-            showHeatmap
+            showPlayerHeatmap
               ? "bg-amber-500 text-black shadow-md"
               : "text-gray-300 hover:text-white hover:bg-white/10"
           }`}
-          title="Toggle Territorial Pressure Heatmap"
+          title="Activează heatmap-ul individual pentru jucătorul selectat"
         >
           <Flame className="w-3 h-3" />
-          <span>Heatmap</span>
+          <span>
+            {showPlayerHeatmap && activeHeatmapPlayer
+              ? `Heatmap: ${activeHeatmapPlayer.name.split(" ").slice(-1)[0]}`
+              : "Heatmap Jucător"}
+          </span>
         </button>
 
         <button
@@ -274,7 +341,7 @@ export const BroadcastPitch: React.FC<BroadcastPitchProps> = ({
       </div>
 
       {/* Corner Watermark */}
-      <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur px-2 py-0.5 rounded text-[9px] text-gray-300 font-mono pointer-events-none border border-white/10">
+      <div className="absolute bottom-2 right-24 bg-black/60 backdrop-blur px-2 py-0.5 rounded text-[9px] text-gray-300 font-mono pointer-events-none border border-white/10">
         OPTA CALIBRATED • 105x68m
       </div>
     </div>

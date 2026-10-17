@@ -280,8 +280,10 @@ export function App() {
                   awayPlayers={payload?.away_players}
                   focusedPlayer={focusedPlayer}
                   onSelectPlayer={handleSelectPlayer}
-                  heatmapPoints={payload?.heatmap_points || []}
+                  playerHeatmaps={payload?.player_heatmaps || {}}
                   passLinks={payload?.pass_links || []}
+                  currentMinute={payload?.current_minute || 1}
+                  period={payload?.latest_event?.period || "1H"}
                 />
                 {/* On-Screen Graphic Overlay (Stage D) */}
                 <BroadcastOverlayBanner overlay={payload?.active_overlay || null} />

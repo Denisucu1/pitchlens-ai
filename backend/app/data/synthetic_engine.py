@@ -84,13 +84,21 @@ class SyntheticMatchEngine:
         self.heatmap_cells: List[PitchCoordinates] = []
         self.timeline_moments: List[Dict] = []
 
+        # Individual Player Heatmaps (Dictionary of player_id -> list of PitchCoordinates)
+        self.player_heatmaps: Dict[str, List[PitchCoordinates]] = {}
+        for p in self.home_team.players + self.away_team.players:
+            self.player_heatmaps[p.id] = [PitchCoordinates(x=p.current_coords.x, y=p.current_coords.y)]
+            p.heatmap = list(self.player_heatmaps[p.id])
+
         self._update_controlled_tactical_positions(is_home=True)
 
     def _update_controlled_tactical_positions(self, is_home: bool):
         """
         Coordinates organic, compact tactical block movement for all 22 players.
         Lines push up, drop back, and slide laterally towards the ball channel.
+        AT HALF-TIME (2H): Teams switch ends of the pitch!
         """
+        is_2h = (self.period == "2H")
         ball_y_shift = (self.current_ball_pos.y - 50.0) * 0.16
 
         attack_x_push = 0.0 if self.possession_phase == 0 else (10.0 if self.possession_phase == 1 else 18.0)
@@ -105,14 +113,26 @@ class SyntheticMatchEngine:
             else:
                 anchor_key = p.position
 
-            base_x, base_y = self.home_base_anchors.get(anchor_key, (50.0, 50.0))
+            orig_x, orig_y = self.home_base_anchors.get(anchor_key, (50.0, 50.0))
 
-            if is_home:
-                new_x = base_x + (attack_x_push * (0.4 if p.position == "GK" else 1.0))
-                new_y = base_y + ball_y_shift + random.uniform(-1.0, 1.0)
+            # In 1H: Home defends Left (x=0), attacks Right (x=100)
+            # In 2H: Home defends Right (x=100), attacks Left (x=0) - SIDES SWITCH
+            if not is_2h:
+                base_x, base_y = orig_x, orig_y
+                if is_home:
+                    new_x = base_x + (attack_x_push * (0.4 if p.position == "GK" else 1.0))
+                    new_y = base_y + ball_y_shift + random.uniform(-1.0, 1.0)
+                else:
+                    new_x = max(10.0, base_x - (defense_x_drop * 0.8))
+                    new_y = base_y + (ball_y_shift * 0.6) + random.uniform(-1.0, 1.0)
             else:
-                new_x = max(10.0, base_x - (defense_x_drop * 0.8))
-                new_y = base_y + (ball_y_shift * 0.6) + random.uniform(-1.0, 1.0)
+                base_x, base_y = 100.0 - orig_x, 100.0 - orig_y
+                if is_home:
+                    new_x = base_x - (attack_x_push * (0.4 if p.position == "GK" else 1.0))
+                    new_y = base_y + ball_y_shift + random.uniform(-1.0, 1.0)
+                else:
+                    new_x = min(90.0, base_x + (defense_x_drop * 0.8))
+                    new_y = base_y + (ball_y_shift * 0.6) + random.uniform(-1.0, 1.0)
 
             p.current_coords.x = round(max(3.0, min(96.0, new_x)), 1)
             p.current_coords.y = round(max(6.0, min(94.0, new_y)), 1)
@@ -126,17 +146,38 @@ class SyntheticMatchEngine:
             else:
                 anchor_key_a = p.position
 
-            base_x, base_y = self.away_base_anchors.get(anchor_key_a, (50.0, 50.0))
+            orig_x_a, orig_y_a = self.away_base_anchors.get(anchor_key_a, (50.0, 50.0))
 
-            if not is_home:
-                new_x = base_x - (attack_x_push * (0.4 if p.position == "GK" else 1.0))
-                new_y = base_y + ball_y_shift + random.uniform(-1.0, 1.0)
+            # In 1H: Away defends Right (x=100), attacks Left (x=0)
+            # In 2H: Away defends Left (x=0), attacks Right (x=100) - SIDES SWITCH
+            if not is_2h:
+                base_x_a, base_y_a = orig_x_a, orig_y_a
+                if not is_home:
+                    new_x = base_x_a - (attack_x_push * (0.4 if p.position == "GK" else 1.0))
+                    new_y = base_y_a + ball_y_shift + random.uniform(-1.0, 1.0)
+                else:
+                    new_x = min(90.0, base_x_a + (defense_x_drop * 0.8))
+                    new_y = base_y_a + (ball_y_shift * 0.6) + random.uniform(-1.0, 1.0)
             else:
-                new_x = min(90.0, base_x + (defense_x_drop * 0.8))
-                new_y = base_y + (ball_y_shift * 0.6) + random.uniform(-1.0, 1.0)
+                base_x_a, base_y_a = 100.0 - orig_x_a, 100.0 - orig_y_a
+                if not is_home:
+                    new_x = base_x_a + (attack_x_push * (0.4 if p.position == "GK" else 1.0))
+                    new_y = base_y_a + ball_y_shift + random.uniform(-1.0, 1.0)
+                else:
+                    new_x = max(10.0, base_x_a - (defense_x_drop * 0.8))
+                    new_y = base_y_a + (ball_y_shift * 0.6) + random.uniform(-1.0, 1.0)
 
             p.current_coords.x = round(max(3.0, min(96.0, new_x)), 1)
             p.current_coords.y = round(max(6.0, min(94.0, new_y)), 1)
+
+    def _record_player_touch(self, player: PlayerProfile, coords: PitchCoordinates):
+        """Records an authentic Opta touch point in the individual player's heatmap."""
+        if player.id not in self.player_heatmaps:
+            self.player_heatmaps[player.id] = []
+        self.player_heatmaps[player.id].append(PitchCoordinates(x=round(coords.x, 1), y=round(coords.y, 1)))
+        if len(self.player_heatmaps[player.id]) > 75:
+            self.player_heatmaps[player.id].pop(0)
+        player.heatmap = list(self.player_heatmaps[player.id])
 
     def _calculate_pitch_distance_meters(self, p1: PitchCoordinates, p2: PitchCoordinates) -> float:
         dx = (p2.x - p1.x) * 1.05
@@ -235,6 +276,13 @@ class SyntheticMatchEngine:
         # Make sure actor position matches updated coordinates
         self.current_ball_pos = PitchCoordinates(x=actor.current_coords.x, y=actor.current_coords.y)
 
+        # Record touch for active actor
+        self._record_player_touch(actor, self.current_ball_pos)
+
+        # Periodically sample GPS positions for 3 other players to build realistic tracking clouds
+        for p in random.sample(self.home_team.players + self.away_team.players, k=4):
+            self._record_player_touch(p, p.current_coords)
+
         under_pressure = (self.possession_phase == 2) or (random.random() < 0.25)
         pressure_intensity = random.uniform(40.0, 80.0) if under_pressure else random.uniform(10.0, 30.0)
 
@@ -242,8 +290,17 @@ class SyntheticMatchEngine:
         team_shots = self.home_shots if is_home else self.away_shots
         team_goals = self.home_goals if is_home else self.away_goals
 
-        in_shooting_range = (self.current_ball_pos.x > 75) if is_home else (self.current_ball_pos.x < 25)
-        should_shoot = in_shooting_range and (self.passes_in_current_chain >= 6) and (random.random() < 0.35) and (team_shots < 14)
+        is_2h = (self.period == "2H")
+        if not is_2h:
+            # 1H: Home attacks toward x=100 (Right), Away attacks toward x=0 (Left)
+            in_shooting_range = (self.current_ball_pos.x > 74.0) if is_home else (self.current_ball_pos.x < 26.0)
+            goal_x = 100.0 if is_home else 0.0
+        else:
+            # 2H: SIDES SWITCH! Home attacks toward x=0 (Left), Away attacks toward x=100 (Right)
+            in_shooting_range = (self.current_ball_pos.x < 26.0) if is_home else (self.current_ball_pos.x > 74.0)
+            goal_x = 0.0 if is_home else 100.0
+
+        should_shoot = in_shooting_range and (self.passes_in_current_chain >= 5) and (random.random() < 0.35) and (team_shots < 14)
 
         if should_shoot:
             if is_home:
@@ -251,7 +308,7 @@ class SyntheticMatchEngine:
             else:
                 self.away_shots += 1
 
-            goal_target = PitchCoordinates(x=100.0 if is_home else 0.0, y=50.0)
+            goal_target = PitchCoordinates(x=goal_x, y=50.0)
             dx = (goal_target.x - self.current_ball_pos.x) * 1.05
             dy = (goal_target.y - self.current_ball_pos.y) * 0.68
             dist = math.sqrt(dx**2 + dy**2)
@@ -316,6 +373,7 @@ class SyntheticMatchEngine:
             # Next actor is opposition GK or CB
             self.current_actor = defending_team.players[0] if outcome in [ShotOutcome.SAVED, ShotOutcome.OFF_TARGET] else defending_team.players[2]
             self.current_ball_pos = PitchCoordinates(x=self.current_actor.current_coords.x, y=self.current_actor.current_coords.y)
+            self._record_player_touch(self.current_actor, self.current_ball_pos)
 
             self.events_history.append(event)
             return event
@@ -325,6 +383,7 @@ class SyntheticMatchEngine:
         if under_pressure and random.random() < turnover_chance:
             defender = defending_team.players[2]
             defender.current_speed_kmh = round(random.uniform(20.0, 28.0), 1)
+            self._record_player_touch(defender, self.current_ball_pos)
 
             event = MatchEvent(
                 event_id=f"evt_{len(self.events_history)+1}",
@@ -376,6 +435,7 @@ class SyntheticMatchEngine:
             # The recipient becomes the new current_actor for the next pass!
             self.current_actor = recipient
             self.current_ball_pos = target_coords
+            self._record_player_touch(recipient, target_coords)
 
             if actor.id not in self.pass_matrix:
                 self.pass_matrix[actor.id] = {}

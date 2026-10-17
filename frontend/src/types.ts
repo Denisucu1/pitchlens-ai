@@ -37,6 +37,7 @@ export interface PlayerProfile {
   distance_covered_meters: number;
   sprint_count: number;
   current_coords: PitchCoordinates;
+  heatmap?: PitchCoordinates[];
 }
 
 export interface TeamProfile {
@@ -230,6 +231,7 @@ export interface LiveMatchPayload {
   league_standings?: LeagueTeamStanding[];
   matchweek_matches?: MatchScoreSummary[];
   latest_goal_alert?: GoalAlert | null;
+  player_heatmaps?: Record<string, PitchCoordinates[]>;
 }
 
 export interface ClubSummary {
