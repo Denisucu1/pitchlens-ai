@@ -184,11 +184,17 @@ export function App() {
     }
   };
 
-  const handleSelectPlayer = (p: PlayerProfile) => {
+  const handleSelectPlayer = (p: PlayerProfile | null) => {
     setFocusedPlayer(p);
-    setPersona("player_focus");
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ action: "SET_PLAYER_FOCUS", player_id: p.id }));
+    if (p) {
+      setPersona("player_focus");
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ action: "SET_PLAYER_FOCUS", player_id: p.id }));
+      }
+    } else {
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ action: "SET_PLAYER_FOCUS", player_id: null }));
+      }
     }
   };
 

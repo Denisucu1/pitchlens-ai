@@ -32,3 +32,29 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #56005c;
 }
+
+/* Micro-movement Jockeying for Living Footballers */
+@keyframes playerJockey {
+  0%, 100% {
+    transform: translate(-50%, -50%) translateY(0px);
+  }
+  50% {
+    transform: translate(-50%, -50%) translateY(-1.5px);
+  }
+}
+
+.animate-jockey {
+  animation: playerJockey 3.2s ease-in-out infinite;
+}
+
+/* Stadium LED Ribbon Board */
+@keyframes stadiumLedScroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-led-scroll {
+  display: flex;
+  width: 200%;
+  animation: stadiumLedScroll 22s linear infinite;
+}
