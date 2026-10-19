@@ -10,6 +10,7 @@ import type {
 import { Navbar } from "./components/Navbar";
 import { BroadcastPitch } from "./components/BroadcastPitch";
 import { BroadcastOverlayBanner } from "./components/BroadcastOverlayBanner";
+import { PlayerBroadcastCard } from "./components/PlayerBroadcastCard";
 import { ControlChaosGauge } from "./components/ControlChaosGauge";
 import { TacticalExplainabilityCard } from "./components/TacticalExplainabilityCard";
 import { PersonalizedNarrativeFeed } from "./components/PersonalizedNarrativeFeed";
@@ -67,13 +68,9 @@ export function App() {
     const currentEvent = payload.latest_event;
     if (currentEvent.event_id === lastSpokenEventId.current) return;
 
-    // Is it a pivotal event (Goal, Shot, Tackle, High-difficulty pass)?
-    const isPivotal = currentEvent.event_type === "goal" || currentEvent.event_type === "shot" || currentEvent.event_type === "tackle" || (currentEvent.pass_difficulty_rating && currentEvent.pass_difficulty_rating > 0.45);
-    
-    // In standard build-up, only commentate occasionally to avoid non-stop chatter
-    const isBuildUpComment = (payload.current_second % 8 === 0);
-
-    if (!isPivotal && !isBuildUpComment) return;
+    // Selective commentary: ONLY speak on pivotal moments (Goals, Dangerous Shots on target, Big Saves)
+    const isPivotal = currentEvent.event_type === "goal" || (currentEvent.event_type === "shot" && currentEvent.shot_outcome !== "blocked");
+    if (!isPivotal) return;
 
     // If commentator is already speaking, do NOT interrupt unless it's a GOAL!
     if (window.speechSynthesis.speaking && currentEvent.event_type !== "goal") {
@@ -292,10 +289,24 @@ export function App() {
                   period={payload?.latest_event?.period || "1H"}
                   homeGameState={payload?.home_game_state || "balanced"}
                   awayGameState={payload?.away_game_state || "balanced"}
+                  scoreHome={payload?.score_home || 0}
+                  scoreAway={payload?.score_away || 0}
                 />
-                {/* On-Screen Graphic Overlay (Stage D) */}
-                <BroadcastOverlayBanner overlay={payload?.active_overlay || null} />
               </div>
+
+              {/* Dedicated Player Broadcast Card - Placed cleanly below pitch without covering turf */}
+              {focusedPlayer && (
+                <PlayerBroadcastCard
+                  player={focusedPlayer}
+                  team={focusedPlayer.team_id === homeTeam?.id ? homeTeam : awayTeam}
+                  onClose={() => handleSelectPlayer(null)}
+                />
+              )}
+
+              {/* On-Screen Graphic Overlay (Stage D) */}
+              {payload?.active_overlay?.is_active && (
+                <BroadcastOverlayBanner overlay={payload.active_overlay} />
+              )}
 
               {/* 90-Minute Momentum Timeline Bar */}
               <MatchTimelineBar

@@ -588,14 +588,13 @@ class SyntheticMatchEngine:
                 player_speed_kmh=0.0
             )
 
-        # Advance match clock
-        time_advance = random.randint(15, 28)
-        # Time wasting: slower clock
+        # Advance match clock naturally (8-14 seconds per phase of play)
+        time_advance = random.randint(8, 14)
         possessing_state = self.home_game_state if self.possession_team_id == self.home_team.id else self.away_game_state
         if possessing_state == GameState.TIME_WASTING:
-            time_advance = random.randint(22, 38)
+            time_advance = random.randint(12, 18)
         elif possessing_state == GameState.COUNTER_ATTACK:
-            time_advance = random.randint(8, 15)  # Fast action
+            time_advance = random.randint(5, 8)  # Fast transition
 
         self.second += time_advance
         if self.second >= 60:

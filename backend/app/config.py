@@ -15,8 +15,8 @@ class Settings(BaseSettings):
     # Direct OpenAI fallback
     OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY", "")
     
-    # Pacing: 4.2 seconds allows genuine broadcast observation, player movement gliding, and commentary digestion
-    SIMULATION_TICK_SECONDS: float = float(os.getenv("SIMULATION_TICK_SECONDS", "4.2"))
+    # Pacing: 5.2 seconds allows calm, authentic broadcast observation and clear tactical tracking
+    SIMULATION_TICK_SECONDS: float = float(os.getenv("SIMULATION_TICK_SECONDS", "5.2"))
     DEFAULT_MATCH_SPEED: float = 1.0
     
     class Config:
