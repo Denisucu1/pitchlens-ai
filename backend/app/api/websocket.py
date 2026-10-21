@@ -81,9 +81,15 @@ async def websocket_endpoint(websocket: WebSocket):
             elif action == "SET_LANGUAGE":
                 raw_lang = cmd.get("language", "en")
                 try:
-                    global_orchestrator.set_language(Language(raw_lang))
+                    lang_obj = Language(raw_lang)
                 except Exception:
-                    global_orchestrator.set_language(raw_lang)
+                    lang_obj = Language.EN
+                updated_payload = global_orchestrator.set_language(lang_obj)
+                if updated_payload:
+                    await websocket.send_json({
+                        "type": "MATCH_TICK",
+                        "data": updated_payload.model_dump(mode="json")
+                    })
             elif action == "STEP":
                 payload = global_orchestrator.tick()
                 await websocket.send_json({

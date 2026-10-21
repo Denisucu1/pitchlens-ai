@@ -56,6 +56,128 @@ class TacticalExplainabilityEngine:
             )
             return self.active_insight
             
+        elif event.event_type == EventType.CORNER:
+            self.active_insight = ExplainabilityInsight(
+                insight_id=f"ins_{self.insight_counter}",
+                minute=event.minute,
+                second=event.second,
+                title="Set-Piece: Near-Post Overload Corner",
+                why_it_matters=(
+                    f"A pinpoint inswinging delivery from {event.player.name} targeting the 6-yard corridor. "
+                    f"Modern Premier League set pieces account for over 30% of goals; clustering aerial threats "
+                    f"forces defensive zone disorientation."
+                ),
+                tactical_shift_explanation=(
+                    f"The defending side deployed a hybrid zonal-man marking scheme, but the attacking side's "
+                    f"screens and delayed second-phase runs unlocked an aerial duel with {event.xG:.2f} xG."
+                ),
+                pattern_detected="Near-Post Screen & Zonal Overload Routine",
+                key_contributing_factors=[
+                    "Curling delivery into the 6-yard corridor",
+                    f"High aerial threat xG: {event.xG:.2f}",
+                    "Defensive zonal marking breached by coordinated block"
+                ]
+            )
+            return self.active_insight
+
+        elif event.event_type == EventType.PENALTY:
+            self.active_insight = ExplainabilityInsight(
+                insight_id=f"ins_{self.insight_counter}",
+                minute=event.minute,
+                second=event.second,
+                title="High-Drama Penalty Kick Duel (xG: 0.79)",
+                why_it_matters=(
+                    f"{event.player.name} stands 12 yards out for the ultimate psychological duel. "
+                    f"Penalties are the highest expected-goal event in football (0.79 Opta baseline), "
+                    f"often deciding the tactical momentum of entire matches."
+                ),
+                tactical_shift_explanation=(
+                    f"Following an infringement inside the 18-yard box, 20 players cleared outside the D-arc. "
+                    f"The goalkeeper must balance split-second anticipation against a {event.shot_speed_kmh or 112} km/h strike."
+                ),
+                pattern_detected="High-Stakes 1v1 Penalty Inflection Point",
+                key_contributing_factors=[
+                    "Elite xG benchmark: 0.79",
+                    f"Strike velocity: {event.shot_speed_kmh or 112} km/h",
+                    "100% isolated 1v1 psychological execution"
+                ]
+            )
+            return self.active_insight
+
+        elif event.event_type == EventType.FREE_KICK:
+            self.active_insight = ExplainabilityInsight(
+                insight_id=f"ins_{self.insight_counter}",
+                minute=event.minute,
+                second=event.second,
+                title="Direct Free Kick: Danger Zone Geometry",
+                why_it_matters=(
+                    f"Direct set-piece specialist {event.player.name} tests the defensive 4-man wall from ~24 meters. "
+                    f"Curling trajectories over a 9.15m wall force goalkeepers to freeze until the ball clears the heads of defenders."
+                ),
+                tactical_shift_explanation=(
+                    f"The defending team aligned a 4-man wall to protect the near post, conceding the far angle. "
+                    f"Curling ball flight at {event.shot_speed_kmh or 100} km/h generated an acute scoring window."
+                ),
+                pattern_detected="Wall-Clearing Top-Corner Trajectory",
+                key_contributing_factors=[
+                    "Ball placed in high-danger central corridor (24m)",
+                    "4-man defensive wall organized at 9.15m regulation distance",
+                    f"Curling trajectory at {event.shot_speed_kmh or 100} km/h"
+                ]
+            )
+            return self.active_insight
+
+        # Disciplinary Card Decision
+        elif event.event_type == EventType.CARD:
+            is_red = getattr(event, "card_type", "yellow") == "red"
+            card_title = "Red Card Dismissal" if is_red else "Yellow Card Caution"
+            self.active_insight = ExplainabilityInsight(
+                insight_id=f"ins_{self.insight_counter}",
+                minute=event.minute,
+                second=event.second,
+                title=f"Disciplinary: {card_title}",
+                why_it_matters=(
+                    f"Referee issues a {card_title.lower()} to {event.player.name}. "
+                    f"{'A devastating dismissal forcing an immediate 10-man defensive reshuffle.' if is_red else 'The defender is now cautioned, severely curbing their aggressiveness in 1v1 challenges.'}"
+                ),
+                tactical_shift_explanation=(
+                    f"Cynical tackle on {event.recipient.name if event.recipient else 'the attacker'} "
+                    f"halts play in zone ({event.location.x:.1f}, {event.location.y:.1f}). "
+                    f"{'Opponents will now press high with numerical superiority.' if is_red else 'Opposing wingers will aggressively isolate the booked player.'}"
+                ),
+                pattern_detected="Disciplinary Infraction / Tactical Foul",
+                key_contributing_factors=[
+                    f"Official disciplinary sanction: {card_title}",
+                    f"Infraction coordinate: ({event.location.x:.1f}, {event.location.y:.1f})",
+                    "Defensive caution constraint active"
+                ]
+            )
+            return self.active_insight
+
+        # Tactical Foul Stoppage
+        elif event.event_type == EventType.FOUL:
+            self.active_insight = ExplainabilityInsight(
+                insight_id=f"ins_{self.insight_counter}",
+                minute=event.minute,
+                second=event.second,
+                title="Referee Whistle: Tactical Foul",
+                why_it_matters=(
+                    f"Play is halted after {event.player.name} fouls {event.recipient.name if event.recipient else 'the attacker'}. "
+                    f"Tactical fouls deliberately stop attacking transitions at the cost of surrendering set-piece positioning."
+                ),
+                tactical_shift_explanation=(
+                    f"Intense pressure ({event.pressure_intensity:.0f}%) forced an illegal challenge. "
+                    f"Attacking team regains dead-ball positional control."
+                ),
+                pattern_detected="Transition Stoppage via Tactical Foul",
+                key_contributing_factors=[
+                    "Match referee whistle blown",
+                    f"Foul location: x={event.location.x:.1f}, y={event.location.y:.1f}",
+                    "Free-kick dead ball situation"
+                ]
+            )
+            return self.active_insight
+
         elif event.event_type == EventType.SHOT and event.xG and event.xG >= 0.20:
             self.active_insight = ExplainabilityInsight(
                 insight_id=f"ins_{self.insight_counter}",

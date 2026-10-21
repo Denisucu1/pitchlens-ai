@@ -17,13 +17,16 @@ export const MatchweekDrawer: React.FC<MatchweekDrawerProps> = ({
 }) => {
   if (!matches || matches.length === 0) return null;
 
+  const liveMatches = matches.filter((m) => m.is_live !== false && !m.is_finished);
+  const displayMatches = liveMatches.length > 0 ? liveMatches : matches.slice(0, 4);
+
   return (
     <div className="bg-[#12031a] border border-[#38003c] rounded-2xl p-3 shadow-2xl">
       <div className="flex items-center justify-between mb-2.5 px-1">
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
           <h4 className="font-extrabold text-xs text-white uppercase tracking-wider font-mono">
-            Matchweek 28 • Simultaneous Live Fixtures
+            Matchweek 28 • {displayMatches.length} Live Fixtures
           </h4>
         </div>
         <span className="text-[10px] font-mono text-gray-400">
@@ -31,8 +34,8 @@ export const MatchweekDrawer: React.FC<MatchweekDrawerProps> = ({
         </span>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
-        {matches.map((m) => {
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
+        {displayMatches.map((m) => {
           const isFeatured = m.home_team_id === activeHomeId && m.away_team_id === activeAwayId;
 
           return (

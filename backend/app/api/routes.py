@@ -55,12 +55,13 @@ async def get_teams():
 @router.post("/switch-fixture")
 async def switch_fixture(req: SwitchFixtureRequest):
     """Switches the active match to another Premier League fixture."""
-    global_orchestrator.set_fixture(req.home_team_id, req.away_team_id)
-    return {
-        "status": "ok",
-        "home_team": global_orchestrator.engine.home_team.name,
-        "away_team": global_orchestrator.engine.away_team.name
-    }
+    payload = global_orchestrator.set_fixture(req.home_team_id, req.away_team_id)
+    try:
+        from app.api.websocket import manager
+        await manager.broadcast({"type": "MATCH_TICK", "data": payload.model_dump(mode="json")})
+    except Exception:
+        pass
+    return payload
 
 @router.get("/state")
 async def get_match_state():

@@ -1,17 +1,19 @@
 import React from "react";
-import type { PersonalizedNarrative, PersonaMode, MatchEvent } from "../types";
+import type { PersonalizedNarrative, PersonaMode, MatchEvent, PlayerProfile } from "../types";
 import { Radio, BarChart2, UserCheck, MessageSquare } from "lucide-react";
 
 interface PersonalizedNarrativeFeedProps {
   narrative: PersonalizedNarrative | null;
   persona: PersonaMode;
   latestEvent: MatchEvent | null;
+  focusedPlayer?: PlayerProfile | null;
 }
 
 export const PersonalizedNarrativeFeed: React.FC<PersonalizedNarrativeFeedProps> = ({
   narrative,
   persona,
   latestEvent,
+  focusedPlayer,
 }) => {
   if (!narrative) return null;
 
@@ -33,7 +35,9 @@ export const PersonalizedNarrativeFeed: React.FC<PersonalizedNarrativeFeedProps>
         };
       case "player_focus":
         return {
-          title: "Player Spotlight Narrative",
+          title: focusedPlayer
+            ? `Spotlight: #${focusedPlayer.number} ${focusedPlayer.name}`
+            : "Player Spotlight Narrative",
           icon: <UserCheck className="w-3.5 h-3.5 text-[#04F5FF]" />,
           color: "border-[#04F5FF]/40 text-[#04F5FF]",
           content: narrative.player_focus_narrative || narrative.casual_fan_narrative,

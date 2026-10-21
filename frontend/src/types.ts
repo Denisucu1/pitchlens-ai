@@ -12,6 +12,7 @@ export type EventType =
   | "offside"
   | "corner"
   | "free_kick"
+  | "penalty"
   | "substitution"
   | "save";
 
@@ -37,7 +38,24 @@ export interface PlayerProfile {
   distance_covered_meters: number;
   sprint_count: number;
   current_coords: PitchCoordinates;
+  target_coords?: PitchCoordinates;
+  movement_angle_deg?: number;
   heatmap?: PitchCoordinates[];
+  // Live match statistical performance (Opta / Sofascore calibrated)
+  goals?: number;
+  shots?: number;
+  shots_on_target?: number;
+  passes_completed?: number;
+  passes_total?: number;
+  tackles_won?: number;
+  duels_won?: number;
+  interceptions?: number;
+  recoveries?: number;
+  fouls?: number;
+  cards_yellow?: number;
+  cards_red?: number;
+  saves?: number;
+  match_rating?: number;
 }
 
 export interface TeamProfile {
@@ -76,6 +94,8 @@ export interface MatchEvent {
   under_pressure: boolean;
   pressure_intensity: number;
   possession_chain_id: string;
+  set_piece_type?: "corner" | "penalty" | "free_kick" | null;
+  card_type?: "yellow" | "red" | null;
 }
 
 export interface TeamMatchStats {
@@ -91,6 +111,10 @@ export interface TeamMatchStats {
   total_xG: number;
   tackles_won: number;
   pressures_applied: number;
+  corners?: number;
+  fouls?: number;
+  cards_yellow?: number;
+  cards_red?: number;
   avg_ball_speed_kmh: number;
   distance_covered_km: number;
 }
@@ -155,8 +179,9 @@ export interface TimelineMoment {
   type: string;
   player: string;
   team: string;
-  speed: number;
-  xg: number;
+  speed?: number;
+  xg?: number;
+  card?: string;
 }
 
 export interface MatchScoreSummary {
@@ -172,7 +197,9 @@ export interface MatchScoreSummary {
   minute: number;
   period: string;
   is_finished: boolean;
+  is_live?: boolean;
   latest_event_text: string;
+  goal_scorers?: string[];
 }
 
 export interface LeagueTeamStanding {

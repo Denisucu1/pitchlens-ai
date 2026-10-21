@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.api.routes import router as match_router
 from app.api.websocket import ws_router, match_simulation_loop
+from app.api.audio import audio_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -39,6 +40,7 @@ app.add_middleware(
 # Include API and WebSocket routes
 app.include_router(match_router)
 app.include_router(ws_router)
+app.include_router(audio_router)
 
 @app.get("/")
 async def root():

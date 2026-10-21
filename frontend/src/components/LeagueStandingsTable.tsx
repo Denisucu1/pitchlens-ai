@@ -1,17 +1,21 @@
 import React from "react";
-import type { LeagueTeamStanding } from "../types";
+import type { LeagueTeamStanding, MatchScoreSummary } from "../types";
 import { ArrowUp, ArrowDown, Minus, Trophy, Flame } from "lucide-react";
 
 interface LeagueStandingsTableProps {
   standings: LeagueTeamStanding[];
   currentHomeId?: string;
   currentAwayId?: string;
+  matches?: MatchScoreSummary[];
+  onSelectMatch?: (homeId: string, awayId: string) => void;
 }
 
 export const LeagueStandingsTable: React.FC<LeagueStandingsTableProps> = ({
   standings,
   currentHomeId,
   currentAwayId,
+  matches = [],
+  onSelectMatch,
 }) => {
   if (!standings || standings.length === 0) {
     return (
@@ -20,6 +24,15 @@ export const LeagueStandingsTable: React.FC<LeagueStandingsTableProps> = ({
       </div>
     );
   }
+
+  // Build a lookup map of clubs currently playing in active LIVE matches
+  const liveMatchByTeam = new Map<string, MatchScoreSummary>();
+  (matches || []).forEach((m) => {
+    if (m.is_live && !m.is_finished) {
+      liveMatchByTeam.set(m.home_team_id, m);
+      liveMatchByTeam.set(m.away_team_id, m);
+    }
+  });
 
   return (
     <div className="bg-[#15051f] border border-[#38003c] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
@@ -37,7 +50,7 @@ export const LeagueStandingsTable: React.FC<LeagueStandingsTableProps> = ({
               </span>
             </h3>
             <p className="text-[11px] text-gray-400 font-mono">
-              Matchweek 28 • Real-time table updates
+              Matchweek 28 • {liveMatchByTeam.size / 2} Concurrent Live Matches
             </p>
           </div>
         </div>
@@ -75,9 +88,9 @@ export const LeagueStandingsTable: React.FC<LeagueStandingsTableProps> = ({
           </thead>
           <tbody className="divide-y divide-purple-950/40">
             {standings.map((team) => {
-              const isHomePlaying = currentHomeId === team.team_id;
-              const isAwayPlaying = currentAwayId === team.team_id;
-              const isFeatured = isHomePlaying || isAwayPlaying;
+              const liveMatch = liveMatchByTeam.get(team.team_id);
+              const isPlayingLive = Boolean(liveMatch);
+              const isFeatured = currentHomeId === team.team_id || currentAwayId === team.team_id;
 
               // Rank movement indicator
               let rankDiff = team.previous_rank - team.rank;
@@ -95,11 +108,23 @@ export const LeagueStandingsTable: React.FC<LeagueStandingsTableProps> = ({
               return (
                 <tr
                   key={team.team_id}
+                  onClick={() => {
+                    if (isPlayingLive && onSelectMatch && liveMatch) {
+                      onSelectMatch(liveMatch.home_team_id, liveMatch.away_team_id);
+                    }
+                  }}
                   className={`transition-colors text-gray-200 ${zoneBorder} ${
                     isFeatured
-                      ? "bg-purple-950/40 hover:bg-purple-950/60 font-semibold"
+                      ? "bg-purple-950/50 hover:bg-purple-950/70 font-semibold cursor-pointer border-l-4 border-l-purple-400"
+                      : isPlayingLive
+                      ? "bg-emerald-950/20 hover:bg-emerald-950/40 cursor-pointer font-medium"
                       : "hover:bg-white/[0.03]"
                   }`}
+                  title={
+                    isPlayingLive
+                      ? `Click to watch ${liveMatch?.home_short_name} vs ${liveMatch?.away_short_name} LIVE`
+                      : undefined
+                  }
                 >
                   {/* Position & Rank Shift Indicator */}
                   <td className="py-2 px-3 text-center font-mono">
@@ -131,10 +156,20 @@ export const LeagueStandingsTable: React.FC<LeagueStandingsTableProps> = ({
                       <span className="font-bold tracking-tight text-white whitespace-nowrap">
                         {team.team_name}
                       </span>
+
+                      {/* Featured Live Match Badge */}
                       {isFeatured && (
-                        <span className="ml-1 px-1.5 py-0.2 text-[9px] font-mono rounded bg-emerald-500/20 text-[#00FF87] border border-[#00FF87]/40 flex items-center gap-0.5 animate-pulse">
+                        <span className="ml-1 px-1.5 py-0.2 text-[9px] font-mono rounded bg-purple-500/30 text-purple-200 border border-purple-400/50 flex items-center gap-1 shadow-[0_0_8px_rgba(168,85,247,0.4)] animate-pulse">
                           <Flame className="w-2.5 h-2.5 text-[#00FF87]" />
-                          LIVE
+                          FEATURED • LIVE {liveMatch ? `${liveMatch.minute}'` : ""}
+                        </span>
+                      )}
+
+                      {/* Concurrent Live Matches Badge */}
+                      {!isFeatured && isPlayingLive && (
+                        <span className="ml-1 px-1.5 py-0.2 text-[9px] font-mono rounded bg-emerald-500/20 text-[#00FF87] border border-[#00FF87]/40 flex items-center gap-1 animate-pulse">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#00FF87] animate-ping" />
+                          LIVE {liveMatch ? `${liveMatch.minute}'` : ""}
                         </span>
                       )}
                     </div>
@@ -161,38 +196,34 @@ export const LeagueStandingsTable: React.FC<LeagueStandingsTableProps> = ({
                   </td>
 
                   {/* Goals For : Goals Against */}
-                  <td className="py-2 px-2 text-center font-mono text-gray-400 text-[11px] whitespace-nowrap">
+                  <td className="py-2 px-2 text-center font-mono text-gray-300">
                     {team.goals_for}:{team.goals_against}
                   </td>
 
                   {/* Goal Difference */}
-                  <td className={`py-2 px-2 text-center font-mono font-semibold ${
-                    team.goal_diff > 0
-                      ? "text-emerald-400"
-                      : team.goal_diff < 0
-                      ? "text-rose-400"
-                      : "text-gray-400"
-                  }`}>
-                    {team.goal_diff > 0 ? `+${team.goal_diff}` : team.goal_diff}
+                  <td className="py-2 px-2 text-center font-mono font-bold">
+                    <span className={team.goal_diff > 0 ? "text-emerald-400" : team.goal_diff < 0 ? "text-rose-400" : "text-gray-400"}>
+                      {team.goal_diff > 0 ? `+${team.goal_diff}` : team.goal_diff}
+                    </span>
                   </td>
 
                   {/* Points */}
-                  <td className="py-2 px-3 text-center font-mono font-black text-sm text-[#00FF87]">
+                  <td className="py-2 px-3 text-center font-mono font-black text-white text-sm bg-purple-950/20">
                     {team.points}
                   </td>
 
-                  {/* Form (Last 5 matches) */}
+                  {/* Recent Form */}
                   <td className="py-2 px-3 text-center hidden md:table-cell">
                     <div className="flex items-center justify-center gap-1">
-                      {team.form.map((res, i) => (
+                      {(team.form || []).map((res, i) => (
                         <span
                           key={i}
-                          className={`w-4 h-4 rounded text-[9px] font-mono font-bold flex items-center justify-center ${
+                          className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white uppercase ${
                             res === "W"
-                              ? "bg-emerald-600/80 text-white"
+                              ? "bg-emerald-500"
                               : res === "D"
-                              ? "bg-amber-600/70 text-white"
-                              : "bg-rose-700/80 text-white"
+                              ? "bg-amber-500"
+                              : "bg-rose-500"
                           }`}
                         >
                           {res}

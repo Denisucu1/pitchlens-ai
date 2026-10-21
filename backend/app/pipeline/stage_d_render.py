@@ -30,9 +30,75 @@ class BroadcastGraphicOverlayEngine:
                 display_title="⚡ GOAL BREAKDOWN",
                 primary_metric=f"Shot Speed: {event.shot_speed_kmh} km/h",
                 secondary_metric=f"xG Value: {event.xG:.2f}" if event.xG else None,
-                detail_text=f"{event.player.name} (#{event.player.number}) breaks the deadlock!",
+                detail_text=f"{event.player.name} (#{event.player.number}) finds the back of the net!",
                 duration_seconds=7,
                 accent_color="#00FF87"  # Premier League neon green
+            )
+
+        # Set Piece: Penalty Kick
+        elif event.event_type == EventType.PENALTY:
+            return BroadcastOverlay(
+                graphic_id=f"gfx_{self.graphic_sequence}",
+                graphic_type=GraphicType.LOWER_THIRD,
+                display_title="💥 PENALTY KICK DRAMA",
+                primary_metric=f"Conversion xG: {event.xG:.2f}",
+                secondary_metric=f"Velocity: {event.shot_speed_kmh} km/h",
+                detail_text=f"{event.player.name} steps up 12 yards from goal against the keeper",
+                duration_seconds=6,
+                accent_color="#FF2882"
+            )
+
+        # Set Piece: Corner Kick
+        elif event.event_type == EventType.CORNER:
+            return BroadcastOverlay(
+                graphic_id=f"gfx_{self.graphic_sequence}",
+                graphic_type=GraphicType.SPEED_PASS_BADGE,
+                display_title="🚩 SET PIECE: CORNER KICK",
+                primary_metric="Routine: Near-Post Overload",
+                secondary_metric=f"Ball Speed: {event.ball_speed_kmh} km/h",
+                detail_text=f"{event.player.name} whips an inswinging ball into the 6-yard box",
+                duration_seconds=5,
+                accent_color="#04F5FF"
+            )
+
+        # Set Piece: Direct Free Kick
+        elif event.event_type == EventType.FREE_KICK:
+            return BroadcastOverlay(
+                graphic_id=f"gfx_{self.graphic_sequence}",
+                graphic_type=GraphicType.SPEED_PASS_BADGE,
+                display_title="🎯 DIRECT FREE KICK",
+                primary_metric="Distance: ~24 meters",
+                secondary_metric="Defensive Wall: 4 players",
+                detail_text=f"{event.player.name} tests the top corner over the wall",
+                duration_seconds=5,
+                accent_color="#FFA500"
+            )
+
+        # Disciplinary Card Overlay
+        elif event.event_type == EventType.CARD:
+            is_red = getattr(event, "card_type", "yellow") == "red"
+            return BroadcastOverlay(
+                graphic_id=f"gfx_{self.graphic_sequence}",
+                graphic_type=GraphicType.LOWER_THIRD,
+                display_title="🟥 RED CARD DISMISSAL" if is_red else "🟨 YELLOW CARD CAUTION",
+                primary_metric=f"Player: {event.player.name} ({event.player.position})",
+                secondary_metric="Official Sanction: Card Issued",
+                detail_text=f"Referee brandishes a {'red' if is_red else 'yellow'} card for a cynical foul",
+                duration_seconds=6,
+                accent_color="#EF4444" if is_red else "#EAB308"
+            )
+
+        # Foul Stoppage Overlay
+        elif event.event_type == EventType.FOUL:
+            return BroadcastOverlay(
+                graphic_id=f"gfx_{self.graphic_sequence}",
+                graphic_type=GraphicType.SPEED_PASS_BADGE,
+                display_title="⚠️ REFEREE WHISTLE: FOUL",
+                primary_metric=f"Fouled: {event.recipient.name if event.recipient else 'Opponent'}",
+                secondary_metric=f"Intensity: {event.pressure_intensity:.0f}%",
+                detail_text=f"{event.player.name} commits tactical foul at ({event.location.x:.1f}, {event.location.y:.1f})",
+                duration_seconds=4,
+                accent_color="#F59E0B"
             )
 
         # 2. Overlay for High-Speed / High-Difficulty Pass

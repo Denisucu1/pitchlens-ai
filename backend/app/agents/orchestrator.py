@@ -58,13 +58,33 @@ class PitchLensOrchestrator:
         self.history: List[LiveMatchPayload] = []
 
     def set_fixture(self, home_id: str, away_id: str):
-        """Allows switching to any official Premier League fixture."""
+        """Allows switching to any official Premier League fixture, syncing with the live matchweek progress."""
         self.home_team_id = home_id
         self.away_team_id = away_id
+
+        # Look up existing state in the matchweek engine
+        match_info = None
+        for m_id, m in self.league_engine.matches.items():
+            if m["home_id"] == home_id and m["away_id"] == away_id:
+                match_info = m
+                break
+
+        target_minute = match_info["minute"] if match_info else 1
+        score_h = match_info["score_home"] if match_info else 0
+        score_a = match_info["score_away"] if match_info else 0
+        goal_scorers = match_info.get("goal_scorers", []) if match_info else []
+        is_finished = match_info.get("is_finished", False) if match_info else False
+
         self.engine = SyntheticMatchEngine(home_team_id=home_id, away_team_id=away_id, match_id=f"EPL-{home_id.upper()}-{away_id.upper()}")
+        if target_minute > 1 or score_h > 0 or score_a > 0:
+            self.engine.fast_forward_to(target_minute, score_h, score_a, goal_scorers, is_finished)
+
         self.stage_b = MatchInterpretationEngine(home_team_id=home_id, away_team_id=away_id)
-        self.score_home = 0
-        self.score_away = 0
+        if target_minute > 1 or score_h > 0 or score_a > 0:
+            self.stage_b.seed_stats(target_minute, score_h, score_a, self.engine.home_shots, self.engine.away_shots)
+
+        self.score_home = self.engine.home_goals
+        self.score_away = self.engine.away_goals
         self.focused_player_id = self.engine.home_team.players[8].id if len(self.engine.home_team.players) > 8 else None
         self.agent_logs.clear()
         self.history.clear()
@@ -91,8 +111,19 @@ class PitchLensOrchestrator:
     def set_focused_player(self, player_id: Optional[str]):
         self.focused_player_id = player_id
 
-    def set_language(self, language: Language):
+    def set_language(self, language: Language) -> Optional[LiveMatchPayload]:
         self.current_language = language
+        if self.current_payload and self.current_payload.latest_event:
+            focused_player = self.get_focused_player()
+            new_narrative = self.stage_e.generate_narrative(
+                event=self.current_payload.latest_event,
+                rhythm=self.current_payload.rhythm,
+                focused_player=focused_player,
+                language=self.current_language
+            )
+            self.current_payload.narrative = new_narrative
+            return self.current_payload
+        return self.current_payload
 
     def get_focused_player(self) -> Optional[PlayerProfile]:
         if not self.focused_player_id:
@@ -110,12 +141,9 @@ class PitchLensOrchestrator:
         raw_event = self.engine.generate_next_event()
         event = self.stage_a.process(raw_event)
 
-        # Update scores if goal
-        if event.event_type.value == "goal":
-            if event.team_id == self.engine.home_team.id:
-                self.score_home += 1
-            else:
-                self.score_away += 1
+        # Update scores reliably from engine
+        self.score_home = self.engine.home_goals
+        self.score_away = self.engine.away_goals
 
         time_str = f"{event.minute}:{event.second:02d}"
 

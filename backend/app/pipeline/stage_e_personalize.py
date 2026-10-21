@@ -34,10 +34,21 @@ class PersonalizationStoryEngine:
         # 1. Casual Fan Narrative
         if event.event_type == EventType.GOAL:
             casual = f"🔥 INCREDIBLE GOAL! {event.player.name} fires a sensational rocket into the net! The stadium erupts!"
+        elif event.event_type == EventType.PENALTY:
+            casual = f"💥 PENALTY! High drama at the 12-yard mark! {event.player.name} faces the goalkeeper 1-on-1!"
+        elif event.event_type == EventType.CORNER:
+            casual = f"🚩 Dangerous corner kick! {event.player.name} whips an inswinging delivery into the packed 6-yard box!"
+        elif event.event_type == EventType.FREE_KICK:
+            casual = f"🎯 Direct free kick from 24m! {event.player.name} curls it over the defensive wall toward the top corner!"
         elif event.event_type == EventType.SHOT:
             casual = f"⚡ Close call! {event.player.name} unleashes a stinging drive from distance, tested the keeper!"
         elif event.event_type == EventType.TACKLE:
             casual = f"🛡️ Brilliant crunching tackle by {event.player.name}! Snuffing out the danger right on time."
+        elif event.event_type == EventType.FOUL:
+            casual = f"⚠️ Tactical foul blown by the referee against {event.player.name}! Dangerous momentum broken."
+        elif event.event_type == EventType.CARD:
+            is_red = getattr(event, "card_type", "yellow") == "red"
+            casual = f"{'🟥 RED CARD! Complete disaster as' if is_red else '🟨 YELLOW CARD brandished to'} {event.player.name} for a cynical challenge!"
         else:
             casual = f"⚽ Smooth build-up play as {event.player.name} switches play swiftly under pressure."
 
@@ -94,9 +105,29 @@ class PersonalizationStoryEngine:
         if event.event_type == EventType.GOAL:
             casual = f"🔥 GOOOL FABULOS! {event.player.name} trimite o ghiulea imparabilă direct în plasă! Tribunele explodează!"
         elif event.event_type == EventType.SHOT:
-            casual = f"⚡ Ce ocazie! {event.player.name} trage puternic de la distanță, portarul respinge cu greu!"
+            if event.shot_outcome == ShotOutcome.SAVED:
+                casual = f"⚡ Ocazie uriașă! {event.player.name} șutează periculos, dar portarul se întinde și respinge spectaculos!"
+            elif event.shot_outcome == ShotOutcome.POST:
+                casual = f"💥 BARRRĂĂ! Șutul violent trimis de {event.player.name} zguduie stâlpul porții!"
+            else:
+                casual = f"⚡ Ce ocazie! {event.player.name} trage în forță spre poartă de la marginea careului!"
+        elif event.event_type == EventType.SAVE:
+            casual = f"🧤 Paradă fantastică reușită de {event.player.name}! Reflex uluitor pe linia porții ce salvează golul!"
         elif event.event_type == EventType.TACKLE:
-            casual = f"🛡️ Intervenție defensivă excelentă a lui {event.player.name}! Oprește un atac periculos."
+            casual = f"🛡️ Intervenție defensivă excelentă a lui {event.player.name}! Oprește un contraatac periculos."
+        elif event.event_type == EventType.INTERCEPTION:
+            casual = f"⚡ Intercepție crucială a lui {event.player.name}! Anticipează excelent și taie pasa adversarilor."
+        elif event.event_type == EventType.PENALTY:
+            casual = f"💥 PENALTY PENTRU ATACANȚI! Tensiune uriașă la punctul cu var, {event.player.name} își așază balonul la 11 metri!"
+        elif event.event_type == EventType.CORNER:
+            casual = f"🚩 Lovitură de colț executată de {event.player.name}! Mingea este centrată periculos spre bara a doua!"
+        elif event.event_type == EventType.FREE_KICK:
+            casual = f"🎯 Lovitură liberă executată direct de {event.player.name}! Șut peste zidul defensiv!"
+        elif event.event_type == EventType.FOUL:
+            casual = f"⚠️ Arbitrul fluieră! Fault comis de {event.player.name} pentru oprirea unui contraatac promițător."
+        elif event.event_type == EventType.CARD:
+            is_red = getattr(event, "card_type", "yellow") == "red"
+            casual = f"{'🟥 CARTONAȘ ROȘU DIRECT! Eliminare dictată pentru' if is_red else '🟨 CARTONAȘ GALBEN arătat lui'} {event.player.name} după o intrare întârziată!"
         else:
             casual = f"⚽ Construcție rapidă de pase orchestrată de {event.player.name} sub presiunea adversă."
 
@@ -111,6 +142,16 @@ class PersonalizationStoryEngine:
             analyst = (
                 f"[Șut | xG: {event.xG:.2f}] Viteză minge: {event.shot_speed_kmh} km/h din coordonate ({event.location.x:.1f}, {event.location.y:.1f}). "
                 f"Presiune adversă: {event.pressure_intensity:.1f}%."
+            )
+        elif event.event_type == EventType.SAVE:
+            analyst = (
+                f"[Paradă Portar] {event.player.name} respinge șut de xG {event.xG:.2f} cu viteză {event.shot_speed_kmh} km/h. "
+                f"Indice de siguranță defensivă: 94%."
+            )
+        elif event.event_type == EventType.INTERCEPTION:
+            analyst = (
+                f"[Intercepție | Tranziție] {event.player.name} recuperează în {rhythm.dominant_zone}. "
+                f"Viteză reacție: {event.player_speed_kmh} km/h. Indice Haos: {100.0 - rhythm.control_vs_chaos_index:.1f}%."
             )
         elif event.event_type == EventType.PASS:
             diff_str = f"Dificultate: {event.pass_difficulty_rating:.2f}" if event.pass_difficulty_rating else "Standard"
@@ -136,7 +177,7 @@ class PersonalizationStoryEngine:
             else:
                 player_focus = (
                     f"👀 Urmărire {focused_player.name}: Menține poziția la ({focused_player.current_coords.x:.1f}, {focused_player.current_coords.y:.1f}) "
-                    f"în timp ce {event.player.name} dictează jocul în zona centrală."
+                    f"în timp ce {event.player.name} dictează jocul în {rhythm.dominant_zone}."
                 )
 
         return PersonalizedNarrative(

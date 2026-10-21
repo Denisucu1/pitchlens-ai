@@ -17,11 +17,15 @@ import { PersonalizedNarrativeFeed } from "./components/PersonalizedNarrativeFee
 import { StatsPanel } from "./components/StatsPanel";
 import { StudioRecapModal } from "./components/StudioRecapModal";
 import { FanChatWidget } from "./components/FanChatWidget";
-import { AgentBrainMonitor } from "./components/AgentBrainMonitor";
 import { MatchTimelineBar } from "./components/MatchTimelineBar";
 import { LeagueStandingsTable } from "./components/LeagueStandingsTable";
 import { MatchweekDrawer } from "./components/MatchweekDrawer";
 import { GoalAlertToast } from "./components/GoalAlertToast";
+import { PlayerRatingsTable } from "./components/PlayerRatingsTable";
+import { LiveMatchHub } from "./components/LiveMatchHub";
+import { ChampionshipHub } from "./components/ChampionshipHub";
+import { PlayerFocusSelector } from "./components/PlayerFocusSelector";
+import { playNeuralCommentary, stopNeuralCommentary } from "./utils/neuralCommentator";
 
 export function App() {
   const [payload, setPayload] = useState<LiveMatchPayload | null>(null);
@@ -35,7 +39,7 @@ export function App() {
   const [showRecap, setShowRecap] = useState(false);
   const [focusedPlayer, setFocusedPlayer] = useState<PlayerProfile | null>(null);
   const [isAudioEnabled, setIsAudioEnabled] = useState(false);
-  const [activeTab, setActiveTab] = useState<"broadcast" | "standings">("broadcast");
+  const [activeTab, setActiveTab] = useState<"broadcast" | "players" | "standings">("broadcast");
 
   const wsRef = useRef<WebSocket | null>(null);
   const lastSpokenEventId = useRef<string>("");
@@ -61,21 +65,25 @@ export function App() {
       .catch((err) => console.error("Could not fetch clubs", err));
   }, []);
 
-  // Web Speech Audio Voice Commentary Synthesis (Calibrated TV Commentator Logic)
+  // High-Definition Neural Audio Commentary (Microsoft Cognitive Neural Voices)
   useEffect(() => {
-    if (!isAudioEnabled || !payload || !window.speechSynthesis) return;
-
-    const currentEvent = payload.latest_event;
-    if (currentEvent.event_id === lastSpokenEventId.current) return;
-
-    // Selective commentary: ONLY speak on pivotal moments (Goals, Dangerous Shots on target, Big Saves)
-    const isPivotal = currentEvent.event_type === "goal" || (currentEvent.event_type === "shot" && currentEvent.shot_outcome !== "blocked");
-    if (!isPivotal) return;
-
-    // If commentator is already speaking, do NOT interrupt unless it's a GOAL!
-    if (window.speechSynthesis.speaking && currentEvent.event_type !== "goal") {
+    if (!isAudioEnabled || !payload) {
+      stopNeuralCommentary();
       return;
     }
+
+    const currentEvent = payload.latest_event;
+    if (!currentEvent || currentEvent.event_id === lastSpokenEventId.current) return;
+
+    // Selective commentary: Speak on pivotal moments (Goals, Dangerous Shots, Saves, Interceptions, Tackles)
+    const isPivotal =
+      currentEvent.event_type === "goal" ||
+      (currentEvent.event_type === "shot" && currentEvent.shot_outcome !== "blocked") ||
+      currentEvent.event_type === "save" ||
+      currentEvent.event_type === "interception" ||
+      currentEvent.event_type === "tackle";
+
+    if (!isPivotal) return;
 
     lastSpokenEventId.current = currentEvent.event_id;
 
@@ -87,38 +95,8 @@ export function App() {
       textToSpeak = payload.narrative.player_focus_narrative;
     }
 
-    // Strip emojis and bracketed technical tags for clean audio speech
-    const cleanText = textToSpeak
-      .replace(/\[.*?\]/g, "")
-      .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}⭐⚡🔥🛡️⚽👀🎯]/gu, "")
-      .trim();
-
-    if (!cleanText) return;
-
-    if (currentEvent.event_type === "goal") {
-      window.speechSynthesis.cancel(); // Interrupt immediately for a goal!
-    }
-
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.rate = 1.0;
-    utterance.pitch = currentEvent.event_type === "goal" ? 1.15 : 1.0;
-
-    const targetLangCode = language === "ro" ? "ro-RO" : language === "es" ? "es-ES" : "en-GB";
-    utterance.lang = targetLangCode;
-
-    // Select suitable voice if installed in browser
-    const voices = window.speechSynthesis.getVoices();
-    const matchedVoice = voices.find((v) =>
-      language === "ro" ? (v.lang.startsWith("ro") || v.name.toLowerCase().includes("romanian") || v.name.toLowerCase().includes("andrei") || v.name.toLowerCase().includes("maria")) :
-      language === "es" ? (v.lang.startsWith("es") || v.name.toLowerCase().includes("spanish")) :
-      (v.lang.startsWith("en") || v.name.toLowerCase().includes("english"))
-    );
-
-    if (matchedVoice) {
-      utterance.voice = matchedVoice;
-    }
-
-    window.speechSynthesis.speak(utterance);
+    const isGoal = currentEvent.event_type === "goal";
+    playNeuralCommentary(textToSpeak, language, isGoal);
   }, [payload, isAudioEnabled, persona, language]);
 
   // Connect WebSocket
@@ -137,9 +115,17 @@ export function App() {
         try {
           const msg = JSON.parse(event.data);
           if (msg.type === "MATCH_TICK" || msg.type === "INITIAL_STATE") {
-            setPayload(msg.data);
-            if (msg.data.focused_player) {
-              setFocusedPlayer(msg.data.focused_player);
+            const data: LiveMatchPayload = msg.data;
+            setPayload(data);
+            if (data.focused_player) {
+              setFocusedPlayer(data.focused_player);
+            } else {
+              setFocusedPlayer((prev) => {
+                if (!prev) return null;
+                const all = [...(data.home_players || []), ...(data.away_players || [])];
+                const updated = all.find((p) => p.id === prev.id);
+                return updated || prev;
+              });
             }
           }
         } catch (e) {
@@ -195,6 +181,20 @@ export function App() {
     }
   };
 
+  const handlePersonaChange = (newPersona: PersonaMode) => {
+    setPersona(newPersona);
+    if (newPersona === "player_focus" && !focusedPlayer) {
+      // Auto-select key player (e.g. Saka #7 for Arsenal or Haaland #9 for City)
+      const squad = payload?.home_players?.length ? payload.home_players : homeTeam?.players || [];
+      const star =
+        squad.find((p) => p.number === 7 || p.position === "RW" || p.position === "ST") ||
+        squad[0];
+      if (star) {
+        handleSelectPlayer(star);
+      }
+    }
+  };
+
   const handleLanguageChange = (l: Language) => {
     setLanguage(l);
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -204,19 +204,36 @@ export function App() {
 
   const handleSwitchFixture = async (homeId: string, awayId: string) => {
     try {
-      await fetch("http://localhost:8000/api/match/switch-fixture", {
+      const res = await fetch("http://localhost:8000/api/match/switch-fixture", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ home_team_id: homeId, away_team_id: awayId }),
       });
-      // Refresh teams
-      const res = await fetch("http://localhost:8000/api/match/teams");
       const data = await res.json();
-      setHomeTeam(data.home_team);
-      setAwayTeam(data.away_team);
+      if (data && data.match_id) {
+        setPayload(data);
+        if (data.focused_player) {
+          setFocusedPlayer(data.focused_player);
+        }
+      }
+      // Refresh teams
+      const teamRes = await fetch("http://localhost:8000/api/match/teams");
+      const teamData = await teamRes.json();
+      setHomeTeam(teamData.home_team);
+      setAwayTeam(teamData.away_team);
       setActiveTab("broadcast"); // Focus camera on the newly selected match
     } catch (err) {
       console.error("Failed to switch fixture", err);
+    }
+  };
+
+  const handleSelectTeamFromHub = (teamId: string) => {
+    const match = payload?.matchweek_matches?.find(
+      (m) => m.home_team_id === teamId || m.away_team_id === teamId
+    );
+    if (match) {
+      handleSwitchFixture(match.home_team_id, match.away_team_id);
+      setActiveTab("broadcast");
     }
   };
 
@@ -240,7 +257,7 @@ export function App() {
       <Navbar
         payload={payload}
         persona={persona}
-        setPersona={setPersona}
+        setPersona={handlePersonaChange}
         language={language}
         setLanguage={handleLanguageChange}
         isPaused={isPaused}
@@ -271,8 +288,20 @@ export function App() {
       <main className="flex-1 p-4 md:p-6 max-w-7xl mx-auto w-full">
         {activeTab === "broadcast" ? (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Left Column (Pitch, Timeline & Narratives) */}
-            <section className="lg:col-span-8 flex flex-col gap-5">
+            {/* Left Column (Player Focus Selector, Pitch, Overlay, Timeline & Player Card) */}
+            <section className="lg:col-span-7 flex flex-col gap-4">
+              {/* Quick Interactive Player Focus Selector */}
+              <PlayerFocusSelector
+                homeTeam={homeTeam}
+                awayTeam={awayTeam}
+                homePlayers={payload?.home_players || homeTeam?.players || []}
+                awayPlayers={payload?.away_players || awayTeam?.players || []}
+                focusedPlayer={focusedPlayer}
+                onSelectPlayer={handleSelectPlayer}
+                persona={persona}
+                onSetPersona={handlePersonaChange}
+              />
+
               {/* Live Pitch with Overlay */}
               <div className="relative">
                 <BroadcastPitch
@@ -283,7 +312,6 @@ export function App() {
                   awayPlayers={payload?.away_players}
                   focusedPlayer={focusedPlayer}
                   onSelectPlayer={handleSelectPlayer}
-                  playerHeatmaps={payload?.player_heatmaps || {}}
                   passLinks={payload?.pass_links || []}
                   currentMinute={payload?.current_minute || 1}
                   period={payload?.latest_event?.period || "1H"}
@@ -291,6 +319,7 @@ export function App() {
                   awayGameState={payload?.away_game_state || "balanced"}
                   scoreHome={payload?.score_home || 0}
                   scoreAway={payload?.score_away || 0}
+                  controlVsChaosIndex={payload?.rhythm?.control_vs_chaos_index}
                 />
               </div>
 
@@ -314,22 +343,62 @@ export function App() {
                 currentSecond={payload?.current_second || 0}
                 moments={payload?.timeline_moments || []}
               />
+            </section>
 
-              {/* Real-time Narrative Stream (Stage E) */}
+            {/* Right Column (AI Narrative Feed Side-by-Side with Pitch, plus Tactical Intelligence & Stats) */}
+            <section className="lg:col-span-5 flex flex-col gap-4">
+              {/* Real-time Narrative Stream (Stage E) - Prominently alongside pitch */}
               <PersonalizedNarrativeFeed
                 narrative={payload?.narrative || null}
                 persona={persona}
                 latestEvent={payload?.latest_event || null}
+                focusedPlayer={focusedPlayer}
               />
 
-              {/* Agent Brain Activity Monitor (Multi-Agent Orchestration) */}
-              <AgentBrainMonitor logs={payload?.agent_logs || []} />
-            </section>
+              {/* Explainability Engine (Stage C: Why moments matter) */}
+              <TacticalExplainabilityCard insight={payload?.latest_insight || null} />
 
-            {/* Right Column (Tactical Intelligence & Stats) */}
-            <section className="lg:col-span-4 flex flex-col gap-5">
               {/* Game Rhythm & Control vs Chaos (Stage B) */}
               <ControlChaosGauge rhythm={payload?.rhythm || null} />
+
+              {/* Aggregated Match Telemetry & Stats (Stage B) */}
+              <StatsPanel
+                statsHome={payload?.stats_home || null}
+                statsAway={payload?.stats_away || null}
+                homeTeam={homeTeam}
+                awayTeam={awayTeam}
+              />
+            </section>
+          </div>
+        ) : activeTab === "players" ? (
+          /* Live Player Ratings & Sofascore Stats View */
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <section className="lg:col-span-8">
+              <PlayerRatingsTable
+                homeTeam={homeTeam}
+                awayTeam={awayTeam}
+                homePlayers={payload?.home_players || homeTeam?.players || []}
+                awayPlayers={payload?.away_players || awayTeam?.players || []}
+                selectedPlayerId={focusedPlayer?.id}
+                playerHeatmaps={payload?.player_heatmaps || {}}
+                onSelectPlayer={(p) => {
+                  handleSelectPlayer(p);
+                }}
+              />
+            </section>
+
+            <section className="lg:col-span-4 flex flex-col gap-5">
+              {focusedPlayer ? (
+                <PlayerBroadcastCard
+                  player={focusedPlayer}
+                  team={focusedPlayer.team_id === homeTeam?.id ? homeTeam : awayTeam}
+                  onClose={() => handleSelectPlayer(null)}
+                  variant="vertical"
+                  onFocusOnPitch={() => setActiveTab("broadcast")}
+                />
+              ) : (
+                <ControlChaosGauge rhythm={payload?.rhythm || null} />
+              )}
 
               {/* Explainability Engine (Stage C: Why moments matter) */}
               <TacticalExplainabilityCard insight={payload?.latest_insight || null} />
@@ -344,31 +413,42 @@ export function App() {
             </section>
           </div>
         ) : (
-          /* Live Standings View (Flashscore Style) */
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <section className="lg:col-span-8">
-              <LeagueStandingsTable
-                standings={payload?.league_standings || []}
-                currentHomeId={homeTeam?.id}
-                currentAwayId={awayTeam?.id}
-              />
-            </section>
+          /* Live Standings & Hub View (Flashscore Style) */
+          <div className="space-y-6">
+            {/* Live Matches Hub with All 4 Concurrent Live Games */}
+            <LiveMatchHub
+              matches={payload?.matchweek_matches || []}
+              activeHomeId={homeTeam?.id || "arsenal"}
+              activeAwayId={awayTeam?.id || "mancity"}
+              onSelectMatch={(hId, aId) => {
+                handleSwitchFixture(hId, aId);
+                setActiveTab("broadcast");
+              }}
+            />
 
-            <section className="lg:col-span-4 flex flex-col gap-5">
-              {/* Game Rhythm & Control vs Chaos (Stage B) */}
-              <ControlChaosGauge rhythm={payload?.rhythm || null} />
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              <section className="lg:col-span-8">
+                <LeagueStandingsTable
+                  standings={payload?.league_standings || []}
+                  currentHomeId={homeTeam?.id}
+                  currentAwayId={awayTeam?.id}
+                  matches={payload?.matchweek_matches || []}
+                  onSelectMatch={(hId, aId) => {
+                    handleSwitchFixture(hId, aId);
+                    setActiveTab("broadcast");
+                  }}
+                />
+              </section>
 
-              {/* Explainability Engine (Stage C: Why moments matter) */}
-              <TacticalExplainabilityCard insight={payload?.latest_insight || null} />
-
-              {/* Aggregated Match Telemetry & Stats (Stage B) */}
-              <StatsPanel
-                statsHome={payload?.stats_home || null}
-                statsAway={payload?.stats_away || null}
-                homeTeam={homeTeam}
-                awayTeam={awayTeam}
-              />
-            </section>
+              <section className="lg:col-span-4 flex flex-col gap-5">
+                {/* Official Premier League Championship Hub (Title Race, Leaders, Relegation) */}
+                <ChampionshipHub
+                  standings={payload?.league_standings || []}
+                  matches={payload?.matchweek_matches || []}
+                  onSelectTeamMatch={handleSelectTeamFromHub}
+                />
+              </section>
+            </div>
           </div>
         )}
       </main>

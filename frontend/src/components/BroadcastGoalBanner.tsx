@@ -67,7 +67,7 @@ export const BroadcastGoalBanner: React.FC<BroadcastGoalBannerProps> = ({
             <div className="flex items-center gap-2 text-xs font-mono font-bold text-yellow-300 uppercase">
               <span>{scoringTeam?.name || "PREMIER LEAGUE"}</span>
               <span>•</span>
-              <span>MINUTUL {activeGoalEvent.minute}'</span>
+              <span>MINUTE {activeGoalEvent.minute}'</span>
             </div>
 
             <div className="text-xl font-black tracking-tight leading-tight text-white truncate drop-shadow-md">
@@ -76,10 +76,10 @@ export const BroadcastGoalBanner: React.FC<BroadcastGoalBannerProps> = ({
 
             <div className="mt-1 flex items-center gap-3 text-[10px] font-mono text-gray-200">
               <span className="flex items-center gap-1 bg-black/50 px-2 py-0.5 rounded border border-white/10">
-                <Zap className="w-3 h-3 text-yellow-400" /> Viteză șut: <strong className="text-white">{shotSpeed} km/h</strong>
+                <Zap className="w-3 h-3 text-yellow-400" /> Shot Speed: <strong className="text-white">{shotSpeed} km/h</strong>
               </span>
               <span className="flex items-center gap-1 text-emerald-400">
-                <CheckCircle2 className="w-3 h-3" /> VAR Confirmat
+                <CheckCircle2 className="w-3 h-3" /> VAR Confirmed
               </span>
             </div>
           </div>

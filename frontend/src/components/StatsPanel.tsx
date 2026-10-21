@@ -17,18 +17,19 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({
 }) => {
   if (!statsHome || !statsAway) return null;
 
+  const homeColor = homeTeam?.primary_color || "#EF0107";
+  const awayColor = awayTeam?.primary_color || "#6CABDD";
+
   const StatRow = ({
     label,
     valH,
     valA,
     format = (v: any) => v,
-    invertColor = false,
   }: {
     label: string;
     valH: number;
     valA: number;
     format?: (v: any) => string | number;
-    invertColor?: boolean;
   }) => {
     const total = valH + valA;
     const pctH = total > 0 ? (valH / total) * 100 : 50;
@@ -42,12 +43,12 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({
         </div>
         <div className="h-1.5 w-full bg-[#100418] rounded-full overflow-hidden flex">
           <div
-            style={{ width: `${pctH}%` }}
-            className={`h-full ${invertColor ? "bg-cyan-500" : "bg-[#EF0107]"}`}
+            style={{ width: `${pctH}%`, backgroundColor: homeColor }}
+            className="h-full transition-all duration-500 ease-out"
           />
           <div
-            style={{ width: `${100 - pctH}%` }}
-            className={`h-full ${invertColor ? "bg-pink-500" : "bg-[#6CABDD]"}`}
+            style={{ width: `${100 - pctH}%`, backgroundColor: awayColor }}
+            className="h-full transition-all duration-500 ease-out"
           />
         </div>
       </div>
@@ -61,24 +62,18 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({
         <div className="flex items-center gap-2">
           <BarChart3 className="w-4 h-4 text-[#00FF87]" />
           <h3 className="font-extrabold text-xs uppercase tracking-wider text-gray-200">
-            Live Match Telemetry & Stats
+            Official Match Statistics
           </h3>
         </div>
         <div className="flex items-center gap-3 text-[10px] font-bold">
-          <span className="text-[#EF0107]">{homeTeam?.short_name || "CAN"}</span>
+          <span style={{ color: homeColor }}>{homeTeam?.short_name || "HOME"}</span>
           <span className="text-gray-500">VS</span>
-          <span className="text-[#6CABDD]">{awayTeam?.short_name || "TIT"}</span>
+          <span style={{ color: awayColor }}>{awayTeam?.short_name || "AWAY"}</span>
         </div>
       </div>
 
       {/* Rows */}
       <div className="space-y-1">
-        <StatRow
-          label="Possession %"
-          valH={statsHome.possession_pct}
-          valA={statsAway.possession_pct}
-          format={(v) => `${v}%`}
-        />
         <StatRow
           label="Expected Goals (xG)"
           valH={statsHome.total_xG}
@@ -86,33 +81,52 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({
           format={(v) => Number(v).toFixed(2)}
         />
         <StatRow
-          label="Total Shots (On Target)"
+          label="Possession %"
+          valH={statsHome.possession_pct}
+          valA={statsAway.possession_pct}
+          format={(v) => `${v}%`}
+        />
+        <StatRow
+          label="Total Shots"
           valH={statsHome.total_shots}
           valA={statsAway.total_shots}
           format={(v) => v}
+        />
+        <StatRow
+          label="Shots on Target"
+          valH={statsHome.shots_on_target}
+          valA={statsAway.shots_on_target}
+          format={(v) => v}
+        />
+        <StatRow
+          label="Corner Kicks"
+          valH={statsHome.corners ?? 0}
+          valA={statsAway.corners ?? 0}
+          format={(v) => v}
+        />
+        <StatRow
+          label="Fouls Committed"
+          valH={statsHome.fouls ?? 0}
+          valA={statsAway.fouls ?? 0}
+          format={(v) => v}
+        />
+        <StatRow
+          label="Yellow Cards"
+          valH={statsHome.cards_yellow ?? 0}
+          valA={statsAway.cards_yellow ?? 0}
+          format={(v) => `${v} 🟨`}
+        />
+        <StatRow
+          label="Red Cards"
+          valH={statsHome.cards_red ?? 0}
+          valA={statsAway.cards_red ?? 0}
+          format={(v) => `${v} 🟥`}
         />
         <StatRow
           label="Pass Accuracy %"
           valH={statsHome.pass_accuracy_pct}
           valA={statsAway.pass_accuracy_pct}
           format={(v) => `${v}%`}
-        />
-        <StatRow
-          label="Avg Pass Difficulty"
-          valH={statsHome.average_pass_difficulty}
-          valA={statsAway.average_pass_difficulty}
-          format={(v) => Number(v).toFixed(2)}
-        />
-        <StatRow
-          label="Tackles Won"
-          valH={statsHome.tackles_won}
-          valA={statsAway.tackles_won}
-        />
-        <StatRow
-          label="Avg Ball Speed (km/h)"
-          valH={statsHome.avg_ball_speed_kmh}
-          valA={statsAway.avg_ball_speed_kmh}
-          format={(v) => `${Number(v).toFixed(1)} km/h`}
         />
       </div>
     </div>

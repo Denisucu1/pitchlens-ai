@@ -38,18 +38,22 @@ class PremierLeagueMatchweekEngine:
             "southampton":   {"p": 27, "w": 2,  "d": 3, "l": 22, "gf": 19, "ga": 63, "pts": 9,  "form": ["L", "L", "L", "L", "L"]}
         }
 
-        # 10 Concurrent Fixtures of Matchweek 28
-        self.fixtures_config = [
+        # 4 Concurrent LIVE Fixtures of Matchweek 28 (Peak Premier League Saturday Slate)
+        self.live_fixtures_config = [
             ("arsenal", "mancity"),
             ("liverpool", "chelsea"),
             ("manunited", "tottenham"),
             ("astonvilla", "newcastle"),
-            ("brighton", "westham"),
-            ("bournemouth", "brentford"),
-            ("fulham", "wolves"),
-            ("everton", "crystalpalace"),
-            ("nottingham", "leicester"),
-            ("ipswich", "southampton"),
+        ]
+
+        # 6 Completed Matchweek 28 Fixtures (Full Time)
+        self.completed_fixtures_config = [
+            ("brighton", "westham", 2, 1, ["Mitoma 34'", "Ferguson 68'"], ["Bowen 52'"]),
+            ("bournemouth", "brentford", 1, 1, ["Semenyo 41'"], ["Mbeumo 77'"]),
+            ("fulham", "wolves", 2, 0, ["Iwobi 19'", "Muniz 64'"], []),
+            ("everton", "crystalpalace", 0, 1, [], ["Eze 73'"]),
+            ("nottingham", "leicester", 2, 1, ["Wood 28'", "Hudson-Odoi 81'"], ["Vardy 45'"]),
+            ("ipswich", "southampton", 1, 2, ["Delap 12'"], ["Armstrong 58'", "Archer 89'"]),
         ]
 
         # In-memory match state for all 10 fixtures
@@ -62,9 +66,11 @@ class PremierLeagueMatchweekEngine:
         self.init_matchweek()
 
     def init_matchweek(self):
-        """Initializes all 10 fixtures with 0-0 and pre-computes initial ranks."""
+        """Initializes 4 live fixtures and 6 completed fixtures, pre-computing ranks."""
         self.matches.clear()
-        for h_id, a_id in self.fixtures_config:
+
+        # 1. Initialize 4 Active LIVE Fixtures
+        for h_id, a_id in self.live_fixtures_config:
             m_id = f"mw28_{h_id}_{a_id}"
             h_meta = self.teams_metadata.get(h_id)
             a_meta = self.teams_metadata.get(a_id)
@@ -79,14 +85,40 @@ class PremierLeagueMatchweekEngine:
                 "away_short": a_meta.short_name if a_meta else a_id[:3].upper(),
                 "score_home": 0,
                 "score_away": 0,
-                "minute": 1,
+                "minute": 0,
                 "period": "1H",
                 "is_finished": False,
+                "is_live": True,
                 "latest_event_text": "Kickoff at Matchweek 28",
                 "goal_scorers": []
             }
 
-        # Calculate initial ranks at 0-0
+        # 2. Initialize 6 Completed Fixtures (Full Time Results)
+        for h_id, a_id, sh, sa, h_scorers, a_scorers in self.completed_fixtures_config:
+            m_id = f"mw28_{h_id}_{a_id}"
+            h_meta = self.teams_metadata.get(h_id)
+            a_meta = self.teams_metadata.get(a_id)
+            all_scorers = h_scorers + a_scorers
+
+            self.matches[m_id] = {
+                "match_id": m_id,
+                "home_id": h_id,
+                "away_id": a_id,
+                "home_name": h_meta.name if h_meta else h_id.title(),
+                "away_name": a_meta.name if a_meta else a_id.title(),
+                "home_short": h_meta.short_name if h_meta else h_id[:3].upper(),
+                "away_short": a_meta.short_name if a_meta else a_id[:3].upper(),
+                "score_home": sh,
+                "score_away": sa,
+                "minute": 90,
+                "period": "FT",
+                "is_finished": True,
+                "is_live": False,
+                "latest_event_text": f"Full Time: {sh} - {sa}",
+                "goal_scorers": all_scorers
+            }
+
+        # Calculate initial ranks
         initial_standings = self.compute_standings()
         for idx, s in enumerate(initial_standings):
             self.previous_ranks[s.team_id] = idx + 1
@@ -105,6 +137,12 @@ class PremierLeagueMatchweekEngine:
             self.matches[featured_key]["minute"] = minute
             self.matches[featured_key]["is_finished"] = is_finished
             self.matches[featured_key]["period"] = "FT" if is_finished else ("2H" if minute > 45 else "1H")
+
+        # Keep all concurrent live fixtures strictly at the exact same minute
+        for m in self.matches.values():
+            if m.get("is_live", True) and not m.get("is_finished", False):
+                m["minute"] = minute
+                m["period"] = "FT" if minute >= 90 else ("2H" if minute > 45 else "1H")
 
     def tick_background_matches(self, current_minute: int, featured_home_id: str, featured_away_id: str):
         """
@@ -129,11 +167,15 @@ class PremierLeagueMatchweekEngine:
         for m_id, match in self.matches.items():
             h_id = match["home_id"]
             a_id = match["away_id"]
+            # Skip non-live matches (completed matches stay FT)
+            if not match.get("is_live", True):
+                continue
 
             # Skip the featured match (that is updated directly by SyntheticMatchEngine)
             if h_id == featured_home_id and a_id == featured_away_id:
                 continue
 
+            # All active live matches advance to the exact same minute
             match["minute"] = current_minute
             if current_minute >= 90:
                 match["is_finished"] = True
@@ -289,8 +331,17 @@ class PremierLeagueMatchweekEngine:
 
     def get_matchweek_summaries(self) -> List[MatchScoreSummary]:
         """Returns the status and score of all 10 Matchweek 28 fixtures."""
+        active_live_minute = 0
+        for m in self.matches.values():
+            if m.get("is_live", True) and not m.get("is_finished", False):
+                active_live_minute = max(active_live_minute, m["minute"])
+
         summaries: List[MatchScoreSummary] = []
         for m in self.matches.values():
+            is_active_live = m.get("is_live", True) and not m.get("is_finished", False)
+            match_minute = active_live_minute if is_active_live else m["minute"]
+            match_period = "FT" if m.get("is_finished", False) else ("2H" if match_minute > 45 else "1H")
+
             summaries.append(MatchScoreSummary(
                 match_id=m["match_id"],
                 home_team_id=m["home_id"],
@@ -301,9 +352,11 @@ class PremierLeagueMatchweekEngine:
                 away_short_name=m["away_short"],
                 score_home=m["score_home"],
                 score_away=m["score_away"],
-                minute=m["minute"],
-                period=m["period"],
+                minute=match_minute,
+                period=match_period,
                 is_finished=m["is_finished"],
-                latest_event_text=m["latest_event_text"]
+                is_live=m.get("is_live", True),
+                latest_event_text=m["latest_event_text"],
+                goal_scorers=m.get("goal_scorers", [])
             ))
         return summaries

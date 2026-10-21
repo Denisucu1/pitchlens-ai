@@ -47,22 +47,46 @@ export const MatchTimelineBar: React.FC<MatchTimelineBarProps> = ({
           className="absolute left-0 top-0 bottom-0 bg-gradient-to-r from-purple-900/60 via-[#00FF87]/20 to-[#00FF87]/40 border-r-2 border-[#00FF87] transition-all duration-700 pointer-events-none"
         />
 
-        {/* Render Timeline Event Markers (e.g. Goals) */}
+        {/* Render Timeline Event Markers (e.g. Goals, Cards) */}
         {moments.map((m, idx) => {
           const markerPct = Math.min(98, Math.max(2, (m.minute / totalMinutes) * 100));
+          const isCard = m.type === "card";
+          const isRed = isCard && m.card === "red";
+
           return (
             <div
               key={idx}
               style={{ left: `${markerPct}%` }}
               className="absolute -translate-x-1/2 z-20 group cursor-pointer flex flex-col items-center"
             >
-              <div className="w-4 h-4 rounded-full bg-yellow-400 border border-black text-[10px] flex items-center justify-center shadow-lg group-hover:scale-125 transition-transform animate-bounce">
-                ⚽
+              <div
+                className={`w-4 h-4 rounded-full border border-black/80 text-[10px] flex items-center justify-center shadow-lg group-hover:scale-125 transition-transform animate-bounce ${
+                  isCard
+                    ? isRed
+                      ? "bg-red-500 text-white"
+                      : "bg-yellow-400 text-black"
+                    : "bg-yellow-400 text-black"
+                }`}
+              >
+                {isCard ? (isRed ? "🟥" : "🟨") : "⚽"}
               </div>
 
               {/* Tooltip on hover */}
               <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-6 bg-black/95 text-white border border-[#00FF87] text-[10px] px-2 py-1 rounded shadow-xl whitespace-nowrap pointer-events-none z-30 font-mono">
-                <strong className="text-[#00FF87]">{m.minute}' GOAL!</strong> {m.player} ({m.team}) • {m.speed} km/h (xG: {m.xg.toFixed(2)})
+                {isCard ? (
+                  <>
+                    <strong className={isRed ? "text-red-400" : "text-yellow-400"}>
+                      {m.minute}' {isRed ? "RED CARD!" : "YELLOW CARD"}
+                    </strong>{" "}
+                    {m.player} ({m.team})
+                  </>
+                ) : (
+                  <>
+                    <strong className="text-[#00FF87]">{m.minute}' GOAL!</strong> {m.player} ({m.team})
+                    {m.speed ? ` • ${m.speed} km/h` : ""}
+                    {m.xg !== undefined && m.xg !== null ? ` (xG: ${Number(m.xg).toFixed(2)})` : ""}
+                  </>
+                )}
               </div>
             </div>
           );

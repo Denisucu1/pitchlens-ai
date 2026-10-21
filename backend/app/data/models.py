@@ -17,6 +17,7 @@ class EventType(str, Enum):
     OFFSIDE = "offside"
     CORNER = "corner"
     FREE_KICK = "free_kick"
+    PENALTY = "penalty"
     SUBSTITUTION = "substitution"
     SAVE = "save"
 
@@ -63,7 +64,25 @@ class PlayerProfile(BaseModel):
     distance_covered_meters: float = 0.0
     sprint_count: int = 0
     current_coords: PitchCoordinates = Field(default_factory=lambda: PitchCoordinates(x=50.0, y=50.0))
+    target_coords: Optional[PitchCoordinates] = None
+    movement_angle_deg: float = 0.0
     heatmap: List[PitchCoordinates] = []
+
+    # Live match statistical performance (Opta / Sofascore calibrated)
+    goals: int = 0
+    shots: int = 0
+    shots_on_target: int = 0
+    passes_completed: int = 0
+    passes_total: int = 0
+    tackles_won: int = 0
+    duels_won: int = 0
+    interceptions: int = 0
+    recoveries: int = 0
+    fouls: int = 0
+    cards_yellow: int = 0
+    cards_red: int = 0
+    saves: int = 0
+    match_rating: float = 6.8
 
 class TeamProfile(BaseModel):
     id: str
@@ -106,6 +125,8 @@ class MatchEvent(BaseModel):
     under_pressure: bool = False
     pressure_intensity: float = Field(0.0, ge=0.0, le=100.0)
     possession_chain_id: str = "chain_0"
+    set_piece_type: Optional[Literal["corner", "penalty", "free_kick"]] = None
+    card_type: Optional[Literal["yellow", "red"]] = None
 
 # --- AGGREGATED MATCH STATE & INTERPRETATION (STAGE B) ---
 class TeamMatchStats(BaseModel):
@@ -121,6 +142,7 @@ class TeamMatchStats(BaseModel):
     total_xG: float = 0.0
     tackles_won: int = 0
     pressures_applied: int = 0
+    corners: int = 0
     fouls: int = 0
     cards_yellow: int = 0
     cards_red: int = 0
@@ -202,7 +224,9 @@ class MatchScoreSummary(BaseModel):
     minute: int
     period: str = "1H"
     is_finished: bool = False
+    is_live: bool = True
     latest_event_text: str = ""
+    goal_scorers: List[str] = []
 
 class LeagueTeamStanding(BaseModel):
     rank: int

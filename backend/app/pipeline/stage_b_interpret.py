@@ -51,8 +51,8 @@ class MatchInterpretationEngine:
                     (team_stats.successful_passes / max(1, team_stats.total_passes)) * 100.0, 1
                 )
                 
-            # 2. Shot & xG Tracking
-            elif event.event_type in [EventType.SHOT, EventType.GOAL]:
+            # 2. Shot, Penalty & xG Tracking
+            elif event.event_type in [EventType.SHOT, EventType.GOAL, EventType.PENALTY, EventType.FREE_KICK]:
                 team_stats.total_shots += 1
                 if event.xG is not None:
                     team_stats.total_xG = round(team_stats.total_xG + event.xG, 2)
@@ -63,7 +63,23 @@ class MatchInterpretationEngine:
                 if event.shot_outcome == ShotOutcome.GOAL:
                     team_stats.goals += 1
 
-            # 3. Defensive stats
+            # 3. Corners Tracking
+            elif event.event_type == EventType.CORNER:
+                team_stats.corners += 1
+
+            # 4. Fouls Tracking
+            elif event.event_type == EventType.FOUL:
+                team_stats.fouls += 1
+
+            # 5. Cards Tracking
+            elif event.event_type == EventType.CARD:
+                team_stats.fouls += 1
+                if getattr(event, "card_type", "yellow") == "red":
+                    team_stats.cards_red += 1
+                else:
+                    team_stats.cards_yellow += 1
+
+            # 6. Defensive stats
             elif event.event_type == EventType.TACKLE:
                 team_stats.tackles_won += 1
                 
@@ -136,3 +152,38 @@ class MatchInterpretationEngine:
             dominant_zone=zone,
             pace_rating=pace
         )
+
+    def seed_stats(self, minute: int, home_goals: int, away_goals: int, home_shots: int, away_shots: int):
+        """Seeds cumulative team stats when synchronizing to an ongoing live match."""
+        h = self.stats[self.home_team_id]
+        a = self.stats[self.away_team_id]
+
+        h.goals = home_goals
+        h.total_shots = max(home_goals, home_shots)
+        h.shots_on_target = max(home_goals, int(h.total_shots * 0.46))
+        h.total_xG = round(home_goals * 0.82 + (h.total_shots - home_goals) * 0.08, 2)
+        h.corners = max(0, int(minute * 0.12))
+        h.fouls = max(0, int(minute * 0.11))
+        h.cards_yellow = min(4, int(minute * 0.025))
+        h.cards_red = 0
+        h.total_passes = max(10, int(minute * 5.4))
+        h.successful_passes = int(h.total_passes * 0.85)
+        h.pass_accuracy_pct = 85.0
+        h.possession_pct = 52.0
+        h.avg_ball_speed_kmh = 54.0
+        h.tackles_won = max(1, int(minute * 0.18))
+
+        a.goals = away_goals
+        a.total_shots = max(away_goals, away_shots)
+        a.shots_on_target = max(away_goals, int(a.total_shots * 0.44))
+        a.total_xG = round(away_goals * 0.82 + (a.total_shots - away_goals) * 0.08, 2)
+        a.corners = max(0, int(minute * 0.09))
+        a.fouls = max(0, int(minute * 0.13))
+        a.cards_yellow = min(5, int(minute * 0.035))
+        a.cards_red = 0
+        a.total_passes = max(10, int(minute * 4.9))
+        a.successful_passes = int(a.total_passes * 0.83)
+        a.pass_accuracy_pct = 83.0
+        a.possession_pct = 48.0
+        a.avg_ball_speed_kmh = 55.0
+        a.tackles_won = max(1, int(minute * 0.19))

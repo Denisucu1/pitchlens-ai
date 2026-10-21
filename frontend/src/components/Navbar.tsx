@@ -18,8 +18,8 @@ interface NavbarProps {
   clubs: ClubSummary[];
   onSwitchFixture: (homeId: string, awayId: string) => void;
   onResetMatch: () => void;
-  activeTab: "broadcast" | "standings";
-  setActiveTab: (t: "broadcast" | "standings") => void;
+  activeTab: "broadcast" | "players" | "standings";
+  setActiveTab: (t: "broadcast" | "players" | "standings") => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -73,7 +73,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </div>
 
-      {/* Main View Switcher: Live Match Studio vs Standings */}
+      {/* Main View Switcher: Live Match Studio vs Players vs Standings */}
       <div className="flex items-center bg-[#100418] p-1 rounded-xl border border-[#38003c]">
         <button
           onClick={() => setActiveTab("broadcast")}
@@ -89,16 +89,29 @@ export const Navbar: React.FC<NavbarProps> = ({
         </button>
 
         <button
+          onClick={() => setActiveTab("players")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            activeTab === "players"
+              ? "bg-[#38003c] text-[#00FF87] border border-[#00FF87]/40 shadow-md"
+              : "text-gray-400 hover:text-white"
+          }`}
+          title="Live Sofascore Ratings & Player Statistics (Shots, Passes, Tackles)"
+        >
+          <User className="w-3.5 h-3.5 text-cyan-400" />
+          <span>Players & Ratings</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab("standings")}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
             activeTab === "standings"
               ? "bg-[#38003c] text-[#00FF87] border border-[#00FF87]/40 shadow-md"
               : "text-gray-400 hover:text-white"
           }`}
-          title="Live Premier League Standings (Flashscore Style) & Matchweek 28 Hub"
+          title="Live Premier League Standings & Matchweek 28 Results"
         >
           <Trophy className="w-3.5 h-3.5 text-yellow-400" />
-          <span>Standings & Matchweek</span>
+          <span>Standings & Hub</span>
         </button>
       </div>
 
